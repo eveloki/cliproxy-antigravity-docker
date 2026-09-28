@@ -1,9 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 )
+
+// The upstream plugin builds complete SSE frames, but CPA's chat handler adds
+// its own data prefix and final DONE. Send just JSON over the plugin ABI.
+func distributionStreamPayload(payload []byte) []byte {
+	payload = bytes.TrimSpace(payload)
+	payload = bytes.TrimSpace(bytes.TrimPrefix(payload, []byte("data:")))
+	if bytes.Equal(payload, []byte("[DONE]")) {
+		return nil
+	}
+	return payload
+}
 
 // CPA v8's static plugin executors need an explicit ModelRouter self route
 // when the official CLI, rather than CPA's provider auth pool, owns login.

@@ -14,6 +14,11 @@ names and the native `antigravity/*` provider alone. Incoming client API-key
 validation remains in CPA; Google authentication remains in the official CLI.
 There are no synthetic provider credentials and no token extraction.
 
+The same compatibility patch removes the plugin's HTTP SSE envelope at the host
+callback boundary: CPA adds `data:` itself and emits the terminal `[DONE]`.
+Keeping both envelopes would produce invalid `data: data: ...` events.
+The plugin sends bare JSON chunks and leaves DONE emission to CPA.
+
 `git apply --check` must succeed before the build modifies upstream sources.
 New upstream versions that invalidate the patch or already add the route will
 fail the build/tests and require review; no silent patch skipping is allowed.

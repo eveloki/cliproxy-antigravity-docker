@@ -35,3 +35,17 @@
  			ModelRegistrar:        true,
  			ModelProvider:         true,
  			Executor:              true,
+--- a/agy.go
++++ b/agy.go
+@@ -1075,6 +1075,11 @@
+ 	if strings.TrimSpace(streamID) == "" {
+ 		return fmt.Errorf("plugin stream id is required")
+ 	}
++	// CPA owns the HTTP SSE framing and emits the final [DONE].
++	payload = distributionStreamPayload(payload)
++	if len(payload) == 0 {
++		return nil
++	}
+ 	_, err := callHost(methodHostStreamEmit, streamEmitRequest{StreamID: streamID, Payload: payload})
+ 	return err
+ }

@@ -45,3 +45,13 @@ func TestDistributionRouterDoesNotCaptureNativeProviders(t *testing.T) {
 		t.Fatal("invalid RPC JSON was accepted")
 	}
 }
+
+func TestDistributionStreamDoesNotDoubleFrame(t *testing.T) {
+	frame := makeSSEChunk("test", 1, "agy/gemini-3.5-flash-lite", map[string]any{"content": "mock response"}, nil, nil, "")
+	data := distributionStreamPayload(frame)
+	if !json.Valid(data) { t.Fatalf("expected bare JSON, got %q", data) }
+	if string(distributionStreamPayload(data)) != string(data) { t.Fatal("raw JSON changed") }
+	for _, done := range []string{"data: [DONE]\n\n", "[DONE]"} {
+		if len(distributionStreamPayload([]byte(done))) != 0 { t.Fatal("plugin must leave DONE to CPA") }
+	}
+}

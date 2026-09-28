@@ -91,8 +91,10 @@ with opener.open(req, timeout=30) as response:
             continue
         data = line[5:].strip()
         if data == '[DONE]':
+            assert not done, 'Duplicate SSE DONE'
             done = True
-            break
+            continue
+        assert not done, 'SSE data after DONE'
         event = json.loads(data)
         assert not event.get('error'), event
         for choice in event.get('choices', []):

@@ -126,3 +126,9 @@ CPA 不修改；无伪造 auth 文件；非插件命名空间不接管。
 新增 Go 回归测试验证 ABI 分发、非流式/流式路由、原生模型排除和畸形输入。
 容器测试固定 `gemini-3.5-flash-lite`，同时验证 JSON、SSE 完整终止、实际 mock 进程调用记录、
 无 CPA 凭据以及客户端 API key 缺失返回 401。CI 结果待记录，不提前声明修复成功。
+
+第一次补丁 CI [36377577104](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36377577104)
+已确认普通模拟请求返回 200 和预期内容，消除了 `auth_not_found`。
+扩展 SSE 测试发现第二项兼容问题：插件发送完整 SSE 帧，而 CPA 再添加 `data:`，导致双层封装。
+现在补丁在 host stream callback 边界发送纯 JSON，并由 CPA 统一发送 `[DONE]`；
+测试同时拒绝重复终止帧。完整回归结果待下一次 CI。
