@@ -2,6 +2,12 @@
 set -euo pipefail
 image=${1:?image required}
 model=$(cat "$(dirname "$0")/../scripts/test-model.txt")
+# Exercise the real bundled executable, as the runtime user, without network or credentials.
+expected=$(python3 -c 'import json; print(json.load(open("upstream-versions.json"))["agy"]["version"])')
+actual=$(docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true \
+  --entrypoint /usr/bin/timeout "$image" 30 /usr/local/bin/agy --version)
+[[ "$actual" == "$expected" ]] || { echo "Bundled CLI version mismatch: $actual != $expected" >&2; exit 1; }
+echo "PASS: real bundled agy $actual starts without network as the non-root runtime user."
 mock=$(mktemp)
 container=
 cleanup() {
@@ -43,8 +49,8 @@ fi
 MOCK
 chmod 755 "$mock"
 container=$(docker create --network none --cap-drop ALL --security-opt no-new-privileges:true \
-  -e AGY_AUTO_INSTALL=false -e CLIPROXY_TEST_MODEL="$model" "$image")
-docker cp "$mock" "$container:/home/cliproxy/.local/bin/agy"
+  -e CLIPROXY_TEST_MODEL="$model" "$image")
+docker cp "$mock" "$container:/opt/agy/agy"
 docker start "$container" >/dev/null
 ready=false
 for attempt in {1..30}; do
@@ -126,4 +132,4 @@ model = os.environ['CLIPROXY_TEST_MODEL']
 assert calls == ['json:' + model, 'stream-json:' + model], calls
 PY
 echo 'PASS: non-root container; pinned model reaches mock agy in non-streaming and SSE modes; client auth and native routes preserved.'
-echo 'Google OAuth and real agy are NOT tested.'
+echo 'Google OAuth and real model inference are NOT tested; agy --version was checked separately.'

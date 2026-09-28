@@ -8,7 +8,7 @@
 > **不能作为已验证的一键可用方案，也不建议用于生产。**
 > CI 通过不会自动改变此状态。验收记录见 [docs/TESTING.md](docs/TESTING.md)。
 
-将 CLIProxyAPI、cliproxy-antigravity 插件和官方 `agy` 的安装流程集中到一个
+将 CLIProxyAPI、cliproxy-antigravity 插件和固定版本的官方 `agy`集中到一个
 Compose 服务中。维护 Docker/启动脚本、配置，以及一个显式的
 [插件路由兼容补丁](compat/README.md)。CPA 源码不变；插件打包版本为 `0.1.3+cpa8-route1`。
 补丁只将 `agy/*` 请求交给插件自身执行器，不添加 CPA 上游凭据，也不改变官方 CLI 的登录方式。
@@ -17,13 +17,13 @@ Compose 服务中。维护 Docker/启动脚本、配置，以及一个显式的
 客户端工具调用由上游插件模拟为 OpenAI `tool_calls`，工具结果由客户端传回；
 本项目不另外实现 tool bridge。上游的原生工具权限仍然适用。
 
-当前打包修订为 `v8.0.3-0.1.3-r2`，包含上述路由修复；旧 `experimental` 镜像不变。
+当前打包修订为 `v8.0.3-0.1.3-agy1.2.12-r1`，包含上述路由修复；旧 `experimental` 镜像不变。
 
 ## 包含什么
 
 - Debian 多阶段构建；CPA 开启 CGO，插件使用 `-buildmode=c-shared`。
 - 固定上游提交，不随 `main` 自动漂移；构建时运行插件单测和上游 ABI mock 检查。
-- 首次启动从 Google 官方地址安装 agy，镜像层不包含 Google 二进制或账号凭证。
+- 构建时下载官方 agy 1.2.12，校验固定 SHA256 后内置；镜像不包含账号凭证。
 - UID/GID 10001 非 root 运行；持久化整个用户目录与 CPA 配置。
 - 自动生成随机客户端 API key；默认只将 API 暴露到宿主机 `127.0.0.1`。
 - 显式登录、诊断、真实请求 smoke 脚本；本地 healthcheck 不调用 Google。
@@ -35,7 +35,7 @@ Compose 服务中。维护 Docker/启动脚本、配置，以及一个显式的
 ## 首次本地试验
 
 需要 Docker Engine / Docker Desktop、Compose v2，以及访问 GitHub、Go 模块源、
-Debian 软件源和 Google 安装/认证服务的网络。以下命令在项目目录执行。
+Debian 软件源和 Google 认证服务的网络。以下命令在项目目录执行。
 
 ```bash
 # 可选：复制环境配置；默认参数可以直接使用
@@ -43,7 +43,7 @@ cp .env.example .env
 
 docker compose build --pull
 
-# 推荐先在同一个持久卷中安装并登录，然后启动 API
+# 推荐先登录并保存会话到持久卷，然后启动 API
 docker compose run --rm cliproxy login
 
 docker compose up -d
@@ -98,7 +98,7 @@ docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
 
 | 命名卷 | 容器路径 | 内容 |
 | --- | --- | --- |
-| `agy-home` | `/home/cliproxy` | agy 本体、`~/.gemini`、CPA auth、CLI 配置/缓存、工作目录 |
+| `agy-home` | `/home/cliproxy` | `~/.gemini`、CPA auth、CLI 配置/缓存、工作目录（CLI 本体不在卷内） |
 | `cpa-config` | `/config` | CPA 配置及自动生成的客户端 API key |
 
 实际卷名带固定 Compose 项目前缀 `cliproxy-antigravity_`。
@@ -127,7 +127,7 @@ keyring/远程 OAuth 登录，以及 Gemini API key 模式；[企业文档](http
 Repository Secret `ANTIGRAVITY_JSON` 暂不被工作流引用，未将它写入 CLI 目录、镜像或日志。
 真实 CLI 测试仍需可复用的官方登录会话或选定的受支持认证方式。
 
-当前 CI 是无网络的 mock agy 测试，不消费真实账号额度。固定模型同时用于 mock 和手动实测；
+当前 CI 包含真实 CLI 的离线版本检查，以及无网络的 mock agy 集成测试，不消费真实账号额度。固定模型同时用于 mock 和手动实测；
 mock 会检查插件传入的 `--model` 参数，但不能证明真实服务提供该模型。
 CPA → 插件的路由阻塞已通过兼容补丁独立修复；该结果不依赖导入 CPA 内置 provider 的凭据。
 
@@ -150,15 +150,16 @@ docker compose restart cliproxy
 
 ## 安装与升级
 
-安装器地址固定为 `https://antigravity.google/cli/install.sh`，使用官方文档中的
-`--skip-aliases --skip-path`。安装脚本采用 HTTPS 下载，可用 `.env` 中
-`AGY_INSTALLER_SHA256` 校验已审阅版本；它仅验证安装脚本，不锁定下载的 agy 二进制。
-安装失败会退出，不会吞掉错误继续运行。并行安装由文件锁串行化。
+官方 CLI 固定为 `1.2.12`，来自
+[官方 GitHub Release](https://github.com/google-antigravity/antigravity-cli/releases/tag/1.2.12)。
+`upstream-versions.json` 记录版本、资产名和 SHA256；Dockerfile 固定对应下载地址与哈希。
+下载或校验失败会中止构建，禁止回退到 latest 或运行时安装。
 
-已安装 agy 会直接复用，重建 CPA 镜像不会主动重装。
-`AGY_CLI_DISABLE_AUTO_UPDATE=true` 请求关闭 CLI 自动更新，具体版本是否遵循仍待测。
-安装器哈希和 CLI 版本记录在 HOME 的 `.agy-installer-sha256` / `.agy-version.txt`。
-官方首次安装取什么版本由上游决定，因此**目前不承诺完整可复现构建/运行**。
+CLI 位于镜像内 `/opt/agy/agy`，由 root 拥有，运行用户不能改写；
+`/usr/local/bin/agy` 始终调用它，旧持久卷里的 `~/.local/bin/agy` 不会覆盖固定版本。
+`AGY_CLI_DISABLE_AUTO_UPDATE=true` 同时保留。升级通过更换镜像完成，登录数据留在 HOME 卷。
+`AGY_AUTO_INSTALL` 和 `AGY_INSTALLER_SHA256` 已移除，不再参与启动。
+自动更新只追踪 CPA/插件；CLI 版本与哈希需显式修改，不会自动升级。
 
 CPA/插件版本记录在 `upstream-versions.json`，自动更新会同步 Dockerfile 的版本和完整 commit SHA。
 手动改动时必须保持两者一致，并重新完成验收。
@@ -170,13 +171,13 @@ Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固�
 项目仓库：[eveloki/cliproxy-antigravity-docker](https://github.com/eveloki/cliproxy-antigravity-docker)。
 历史实验镜像：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`（保留，不再更新）。
 新发布采用 `v<CPA版本>-<插件版本>`，例如 `v8.0.3-0.1.3`，并更新 `latest`。
-**r2 已通过离线容器集成检查；本次修复 CI 仅构建验证，不执行发布。下面命令需等待对应标签实际发布。**
+**此前路由修复已通过离线集成检查；新的 CLI 内置版本由 Actions 构建并发布，实际结果以工作流为准。**
 所有镜像都保留 **NOT READY — PENDING TESTS** 状态；发布成功不等于真实账号验收通过。
 
 在 `.env` 中设置下面这一行，然后拉取镜像：
 
 ```dotenv
-IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3-r2
+IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3-agy1.2.12-r1
 # 若希望手动 pull 时跟随更新，可改用 :latest
 ```
 
@@ -191,14 +192,14 @@ docker compose up -d --no-build
 
 | 标签 | 含义 | 是否移动 |
 | --- | --- | --- |
-| `v8.0.3-0.1.3` | CPA 8.0.3 + 插件 0.1.3 的首次打包 | 发布流程不覆盖 |
-| `v8.0.3-0.1.3-r2` | 相同上游版本的第 2 次打包修订 | 发布流程不覆盖 |
+| `v8.0.3-0.1.3-agy1.2.12-r1` | CPA 8.0.3 + 插件 0.1.3 + CLI 1.2.12 | 发布流程不覆盖 |
+| `v8.0.3-0.1.3-agy1.2.12-r2` | 相同三组件版本的第 2 次打包修订 | 发布流程不覆盖 |
 | `latest` | 最近成功发布的组合版本，与其 digest 一致 | 新版本通过检查后移动 |
 | `sha-<完整发行层提交>` | 首次发布该版本所用的源码提交 | 随固定版本一并发布 |
 | `experimental` 及已有 `experimental-*` | 历史实验镜像 | 保留，不再更新 |
 
 `latest` 不代表项目已就绪；镜像标签和文档仍标记 **NOT READY — PENDING TESTS**。
-`v8.0.3-0.1.3` 是两个上游版本的组合标识，不按单个 SemVer 的预发布规则排序。
+`v8.0.3-0.1.3-agy1.2.12-r1` 是三个上游版本及打包修订的组合标识，不按单个 SemVer 的预发布规则排序。
 
 版本标签本身不是注册表强制不可变：本仓库通过串行发布和发布前检查保证不覆盖，
 若标签已存在则保留其 digest，仅修复 `latest` 指向。鉴权或网络查询失败会终止发布，
@@ -206,7 +207,7 @@ docker compose up -d --no-build
 
 同一上游组合需要修改 Dockerfile、启动脚本或基础镜像时，将 `upstream-versions.json`
 中的 `packaging_revision` 递增到 2、3……，生成 `-r2`、`-r3` 标签。
-任何上游版本更新时自动重置为 1，采用新组合的基础标签。
+任何上游版本更新时自动重置为 1，采用新组合的 `-r1` 标签。
 若新版上游不能应用兼容补丁或路由测试失败，自动更新停止，必须先审阅适配或移除补丁。
 仅修改文档不产生新的打包版本；重复执行不会重建并覆盖已经发布的版本标签。
 
@@ -217,9 +218,9 @@ UTC 00:17 / 06:17 / 12:17 / 18:17，即北京时间 08:17 / 14:17 / 20:17 / 02:1
 GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
 
 1. 查询 CPA 与插件的最新正式 GitHub Release，解析标签到完整 commit SHA。
-2. 拒绝草稿、预发布、版本回退和同版本标签被移动；跨主版本变化停止并报错，等待兼容性确认。
+2. 拒绝草稿、预发布、版本回退和同版本标签被移动；包括跨主版本更新在内，都必须通过后续构建与集成检查。
 3. 有更新时，先执行脚本测试、完整镜像构建、上游插件单测/ABI mock 测试，
-   再用无网络的 mock agy 检查 CPA → 插件调用是否正常。
+   验证镜像内真实 `agy --version` 与锁定版本一致，再用无网络的 mock agy 检查 CPA → 插件调用是否正常。
 4. 上述检查通过后才提交 `upstream-versions.json` 和 Dockerfile 到 main；只允许 fast-forward，
    其他人同时修改 main 时失败退出，不覆盖他人提交。
 5. 显式调用可复用发布工作流，对该确切提交重新检查后发布 GHCR。
@@ -229,11 +230,11 @@ GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
 
 任何构建/测试失败均不会发布候选镜像或移动 `latest`。已有镜像保留；这不表示其功能已验证。
 发布任务串行执行，并拒绝覆盖已被新 main 提交取代的版本。
-这套自动化只升级 CPA 和插件；不下载 Google 账号凭证、不打包或自动升级持久卷中的 agy。
+这套自动化只升级 CPA 和插件；CLI 固定为锁定版本，不下载 Google 账号凭证。
 
 ### 手动发布与权限
 
-- main push / PR 默认只检查并构建。
+- main push 自动检查最新上游、构建并发布缺失版本；PR 只检查并构建。
 - Actions → **Experimental container (NOT READY)** → Run workflow → 勾选 `publish` 可发布当前 main。
   Git tag push 不再单独触发发布，镜像版本统一取自版本锁，避免产生任意标签。
 - 上游检测流程需要 `contents: write` 更新版本锁；发布任务需要 `packages: write`。

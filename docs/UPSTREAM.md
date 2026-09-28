@@ -9,7 +9,7 @@
 | cliproxy-antigravity | `89d4a3ded47a375a446eac8739a03f6cbda00755`，源码 pluginVersion `0.1.3` |
 | Go builder | `golang:1.26-bookworm`，CPA go.mod 声明 `1.26.0` |
 | runtime | `debian:bookworm-slim` |
-| agy | 不内置；首次运行下载，具体版本待安装后记录 |
+| agy | 官方 Release `1.2.12`，构建时内置 Linux x64 二进制；SHA256 见版本锁 |
 
 - [CPA Dockerfile](https://github.com/router-for-me/CLIProxyAPI/blob/acdace936fa7df2905500c7f5e0a97d683138dea/Dockerfile)：CGO 开启、Debian 构建与运行。
 - [CPA v8 配置](https://github.com/router-for-me/CLIProxyAPI/blob/acdace936fa7df2905500c7f5e0a97d683138dea/config.example.yaml)：server/access/oauth/plugins 字段。
@@ -21,3 +21,11 @@
 官方安装文档与 issue 是不同证据等级。#854 的单一环境观察不能证明
 所有 agy 版本或 Docker 环境均支持稳定文件凭证复用，因此将这项列为实机验收门槛。
 本项目没有依赖未经核实的 token 文件格式或自行解析 Google OAuth 文件。
+
+## 固定官方 CLI（2026-09-28）
+
+下载源：https://github.com/google-antigravity/antigravity-cli/releases/tag/1.2.12
+资产：`agy_cli_linux_x64.tar.gz`，归档内文件名为 `antigravity`。
+SHA256：`26c7c4c661d6c9beda734fcf305031056a6ea46e697c4533e8151179724e2950`。
+已下载并核对哈希，本地 `antigravity --version` 返回 `1.2.12`。
+CLI 固定版本不参与定时升级；CPA/插件继续解析最新正式 Release 并经测试后发布。

@@ -1,5 +1,7 @@
 name: Update upstream releases and publish (experimental)
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:

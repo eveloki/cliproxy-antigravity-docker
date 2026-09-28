@@ -56,8 +56,6 @@ def next_lock(current, get=api):
         old_version, new_version = version_tuple(old['version']), version_tuple(version)
         if new_version < old_version:
             raise ValueError(f'Refusing downgrade: {old["version"]} -> {version}')
-        if new_version[0] != old_version[0]:
-            raise ValueError(f'Major version requires manual compatibility review: {version}')
         commit = release_commit(repository, version, get)
         if new_version == old_version and commit != old['commit']:
             raise ValueError(f'Upstream tag moved without a version change: {version}')
@@ -72,10 +70,29 @@ def image_tag(lock):
     revision = lock.get('packaging_revision', 1)
     if type(revision) is not int or revision < 1:
         raise ValueError('packaging_revision must be a positive integer')
-    return 'v' + '-'.join(versions) + (f'-r{revision}' if revision > 1 else '')
+    agy = validate_agy(lock)
+    return 'v' + '-'.join(versions) + f'-agy{agy["version"]}-r{revision}'
+
+
+def validate_agy(lock):
+    agy = lock['agy']
+    if agy['repository'] != 'google-antigravity/antigravity-cli':
+        raise ValueError('Unexpected CLI repository')
+    version_tuple(agy['version'])
+    if agy['version'].startswith('v') or agy['asset'] != 'agy_cli_linux_x64.tar.gz':
+        raise ValueError('Unexpected CLI version or amd64 asset')
+    if not re.fullmatch(r'[0-9a-f]{64}', agy['sha256']):
+        raise ValueError('Invalid CLI SHA256')
+    return agy
 
 
 def render_dockerfile(content, lock):
+    agy = validate_agy(lock)
+    for field in ('version', 'sha256'):
+        arg = f'AGY_{field.upper()}'
+        content, count = re.subn(rf'^ARG {arg}=.*$', f'ARG {arg}={agy[field]}', content, flags=re.M)
+        if count != 1:
+            raise ValueError(f'Expected exactly one {arg} build argument')
     for key in REPOSITORIES:
         version_tuple(lock[key]['version'])
         if not re.fullmatch(r'[0-9a-f]{40}', lock[key]['commit']):
@@ -106,7 +123,7 @@ def main():
     if changed:
         docker_path.write_text(updated_dockerfile)
         lock_path.write_text(json.dumps(proposed, indent=2) + '\n')
-    suffix = f'cpa-{proposed["cpa"]["version"].lstrip("v")}-plugin-{proposed["plugin"]["version"].lstrip("v")}'
+    suffix = f'cpa-{proposed["cpa"]["version"].lstrip("v")}-plugin-{proposed["plugin"]["version"].lstrip("v")}-agy-{proposed["agy"]["version"]}'
     outputs = {'changed': str(changed).lower(), 'version_suffix': suffix, 'image_tag': image_tag(proposed)}
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:

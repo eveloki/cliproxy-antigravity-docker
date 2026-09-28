@@ -9,8 +9,6 @@ services:
       TZ: Asia/Shanghai
       GEMINI_FORCE_FILE_STORAGE: "true"
       AGY_CLI_DISABLE_AUTO_UPDATE: "true"
-      AGY_AUTO_INSTALL: ${AGY_AUTO_INSTALL:-true}
-      AGY_INSTALLER_SHA256: ${AGY_INSTALLER_SHA256:-}
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8317}:8317"
     volumes:

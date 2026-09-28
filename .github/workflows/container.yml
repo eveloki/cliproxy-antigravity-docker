@@ -1,8 +1,6 @@
 name: Experimental container (NOT READY)
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       publish:

@@ -1,8 +1,6 @@
 """Offline checks of credential/config lifecycle. No Google account involved."""
 import importlib.util
-import os
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 
@@ -34,24 +32,6 @@ class DistributionTests(unittest.TestCase):
                 init_config.initialize(root / 'config', template)
             self.assertFalse((root / 'config/config.yaml').exists())
 
-    def test_reuses_existing_agy_when_install_disabled(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            binary = Path(tmp) / '.local/bin/agy'
-            binary.parent.mkdir(parents=True)
-            binary.write_text('#!/bin/sh\nexit 0\n')
-            binary.chmod(0o700)
-            before = binary.read_bytes()
-            result = subprocess.run(['bash', str(ROOT / 'scripts/bootstrap-agy.sh')],
-                env={**os.environ, 'HOME': tmp, 'AGY_AUTO_INSTALL': 'false'}, capture_output=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(binary.read_bytes(), before)
-
-    def test_missing_agy_does_not_silently_start(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = subprocess.run(['bash', str(ROOT / 'scripts/bootstrap-agy.sh')],
-                env={**os.environ, 'HOME': tmp, 'AGY_AUTO_INSTALL': 'false'}, capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn(b'agy missing', result.stderr)
 
 
 if __name__ == '__main__':

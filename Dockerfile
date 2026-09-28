@@ -1,5 +1,22 @@
 # syntax=docker/dockerfile:1
-# Experimental distribution. No Google executable or account is baked in.
+# Personal experimental distribution. Fixed official CLI; no account is baked in.
+FROM debian:bookworm-slim AS agy-builder
+ARG AGY_VERSION=1.2.12
+ARG AGY_SHA256=26c7c4c661d6c9beda734fcf305031056a6ea46e697c4533e8151179724e2950
+ARG TARGETARCH
+RUN test "$TARGETARCH" = amd64 && \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+RUN curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 20 --max-time 300 --retry 3 \
+      "https://github.com/google-antigravity/antigravity-cli/releases/download/${AGY_VERSION}/agy_cli_linux_x64.tar.gz" \
+      --output /tmp/agy.tar.gz && \
+    printf '%s  /tmp/agy.tar.gz\n' "$AGY_SHA256" | sha256sum --check --status && \
+    mkdir -p /out/agy && tar -xzf /tmp/agy.tar.gz --no-same-owner -C /out/agy antigravity && \
+    mv /out/agy/antigravity /out/agy/agy && chmod 755 /out/agy/agy && \
+    printf '%s\n' "$AGY_VERSION" > /out/agy/VERSION && \
+    printf 'AGY_VERSION=%s\nAGY_ARCHIVE_SHA256=%s\nAGY_SOURCE=https://github.com/google-antigravity/antigravity-cli\n' \
+      "$AGY_VERSION" "$AGY_SHA256" > /out/agy/provenance.txt && rm /tmp/agy.tar.gz
 FROM golang:1.26-bookworm AS builder
 ARG CPA_COMMIT=acdace936fa7df2905500c7f5e0a97d683138dea
 ARG PLUGIN_COMMIT=89d4a3ded47a375a446eac8739a03f6cbda00755
@@ -44,17 +61,18 @@ COPY --from=builder /out/CLIProxyAPI /opt/cliproxy/CLIProxyAPI
 COPY --from=builder /out/cliproxy-antigravity.so /opt/cliproxy/plugins/cliproxy-antigravity.so
 COPY --from=builder /out/licenses/ /opt/cliproxy/licenses/
 COPY --from=builder /out/upstream-versions.txt /opt/cliproxy/upstream-versions.txt
+COPY --from=agy-builder /out/agy/ /opt/agy/
 COPY scripts/ /opt/cliproxy/scripts/
 COPY config.example.yaml LICENSE THIRD_PARTY_NOTICES.md STATUS /opt/cliproxy/
 RUN chmod 755 /opt/cliproxy/scripts/*.sh && \
-    ln -s /opt/cliproxy/scripts/agy.sh /usr/local/bin/agy
+    ln -s /opt/cliproxy/scripts/agy.sh /usr/local/bin/agy && \
+    cat /opt/agy/provenance.txt >> /opt/cliproxy/upstream-versions.txt
 ENV HOME=/home/cliproxy \
     GEMINI_FORCE_FILE_STORAGE=true \
     AGY_CLI_DISABLE_AUTO_UPDATE=true \
-    AGY_AUTO_INSTALL=true \
     TZ=Asia/Shanghai
 LABEL org.opencontainers.image.title="CLIProxyAPI Antigravity Docker (experimental)" \
-      org.opencontainers.image.description="NOT READY — PENDING TESTS. Community thin distribution; installs agy at runtime." \
+      org.opencontainers.image.description="NOT READY — PENDING TESTS. Personal distribution with a pinned official agy binary." \
       io.cliproxy.distribution.status="NOT_READY_PENDING_TESTS"
 USER 10001:10001
 WORKDIR /home/cliproxy/workspace
