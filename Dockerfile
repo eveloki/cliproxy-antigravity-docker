@@ -3,6 +3,8 @@
 FROM golang:1.26-bookworm AS builder
 ARG CPA_COMMIT=acdace936fa7df2905500c7f5e0a97d683138dea
 ARG PLUGIN_COMMIT=89d4a3ded47a375a446eac8739a03f6cbda00755
+ARG CPA_VERSION=v8.0.3
+ARG PLUGIN_VERSION=v0.1.3
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git python3 ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts/fetch-source.sh /usr/local/bin/fetch-source
@@ -11,7 +13,7 @@ RUN chmod 755 /usr/local/bin/fetch-source && \
     fetch-source https://github.com/adeebahmad01/cliproxy-antigravity.git "$PLUGIN_COMMIT" /src/plugin
 WORKDIR /src/cpa
 RUN go mod download && go mod verify && \
-    go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=experimental -X main.Commit=${CPA_COMMIT}" -o /out/CLIProxyAPI ./cmd/server/
+    go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT}" -o /out/CLIProxyAPI ./cmd/server/
 WORKDIR /src/plugin
 RUN go test ./... && \
     go build -trimpath -buildmode=c-shared -ldflags="-s -w" -o /out/cliproxy-antigravity.so . && \
@@ -20,7 +22,7 @@ RUN mkdir -p /out/licenses && \
     cp /src/cpa/LICENSE /out/licenses/CLIProxyAPI.LICENSE && \
     cp /src/plugin/LICENSE /out/licenses/cliproxy-antigravity.LICENSE && \
     cp /src/plugin/THIRD_PARTY_NOTICES.md /out/licenses/plugin-THIRD_PARTY_NOTICES.md && \
-    printf 'CPA_COMMIT=%s\nPLUGIN_COMMIT=%s\n' "$CPA_COMMIT" "$PLUGIN_COMMIT" > /out/upstream-versions.txt
+    printf 'CPA_VERSION=%s\nCPA_COMMIT=%s\nPLUGIN_VERSION=%s\nPLUGIN_COMMIT=%s\n' "$CPA_VERSION" "$CPA_COMMIT" "$PLUGIN_VERSION" "$PLUGIN_COMMIT" > /out/upstream-versions.txt
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \

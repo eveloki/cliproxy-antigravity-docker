@@ -1,0 +1,95 @@
+name: Update upstream releases and publish (experimental)
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: upstream-release-update
+  cancel-in-progress: false
+jobs:
+  update:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    outputs:
+      sha: ${{ steps.result.outputs.sha }}
+      publish: ${{ steps.result.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check latest stable releases
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/update-upstreams.py --update
+      - name: Validate candidate pins and distribution scripts
+        if: steps.upstream.outputs.changed == 'true'
+        run: |
+          python3 -m unittest discover -s tests -v
+          python3 scripts/update-upstreams.py
+          docker compose config --quiet
+      - uses: docker/setup-buildx-action@v3
+        if: steps.upstream.outputs.changed == 'true'
+      - name: Build candidate before changing main
+        if: steps.upstream.outputs.changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: cliproxy-upstream-candidate:test
+          cache-from: type=gha,scope=cliproxy-amd64
+          cache-to: type=gha,mode=max,scope=cliproxy-amd64
+      - name: Check CPA/plugin integration without Google credentials
+        if: steps.upstream.outputs.changed == 'true'
+        run: bash tests/image-smoke.sh cliproxy-upstream-candidate:test
+      - name: Commit tested versions (fast-forward only)
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_SUFFIX: ${{ steps.upstream.outputs.version_suffix }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add upstream-versions.json Dockerfile
+          git commit -m "chore: update upstream $VERSION_SUFFIX"
+          # Credential only exists during this push, not during upstream builds.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:main
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Decide whether publication is needed
+        id: result
+        env:
+          REPOSITORY: ${{ github.repository }}
+          CHANGED: ${{ steps.upstream.outputs.changed }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          publish=true
+          # Retry a failed publication next schedule even if no new release appears.
+          if [[ "$CHANGED" != true ]] && docker manifest inspect "ghcr.io/${REPOSITORY,,}:experimental-sha-$sha" >/dev/null 2>&1; then
+            publish=false
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "Upstream changed=$CHANGED; publish=$publish; source=$sha" >> "$GITHUB_STEP_SUMMARY"
+  publish:
+    needs: update
+    if: needs.update.outputs.publish == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/container.yml
+    with:
+      publish: true
+      checkout_ref: ${{ needs.update.outputs.sha }}

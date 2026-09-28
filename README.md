@@ -2,8 +2,8 @@
 
 > **🚧 项目未就绪，等待测试 / NOT READY — PENDING TESTS**
 >
-> 当前是可供构建和验证的实验项目。尚未完成 Docker 镜像构建、真实 Google
-> 登录、容器重建后的认证复用、流式响应和工具调用闭环验证。
+> GitHub Actions 已完成 Docker 镜像构建。真实 Google 登录、容器重建后的
+> 认证复用、流式响应和工具调用闭环仍未完成验证。
 > **不能作为已验证的一键可用方案，也不建议用于生产。**
 > CI 通过不会自动改变此状态。验收记录见 [docs/TESTING.md](docs/TESTING.md)。
 
@@ -22,7 +22,7 @@ Compose 服务中。只维护 Docker/启动脚本和配置，不 fork 或修改�
 - UID/GID 10001 非 root 运行；持久化整个用户目录与 CPA 配置。
 - 自动生成随机客户端 API key；默认只将 API 暴露到宿主机 `127.0.0.1`。
 - 显式登录、诊断、真实请求 smoke 脚本；本地 healthcheck 不调用 Google。
-- GitHub Actions 构建与实验 GHCR 发布；不会生成 `latest` 或稳定版标签。
+- GitHub Actions 构建与实验 GHCR 发布，每 6 小时检查上游正式 Release；不会生成 `latest`。
 
 首版仅提供 `linux/amd64` 构建目标。ARM64、Windows/macOS Docker Desktop
 均未验证；不要把上游的跨平台支持等同于本发行版已经验证。
@@ -137,32 +137,69 @@ docker compose restart cliproxy
 安装器哈希和 CLI 版本记录在 HOME 的 `.agy-installer-sha256` / `.agy-version.txt`。
 官方首次安装取什么版本由上游决定，因此**目前不承诺完整可复现构建/运行**。
 
-升级 CPA/插件时修改 Dockerfile 的两个完整 commit SHA，并重新完成验收。
+CPA/插件版本记录在 `upstream-versions.json`，自动更新会同步 Dockerfile 的版本和完整 commit SHA。
+手动改动时必须保持两者一致，并重新完成验收。
 Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固定这些依赖。
 不要以“用了同一个 Go 编译器”为由假定兼容；插件使用 C ABI，其协议兼容性仍需验证。
 
 ## GitHub 与 GHCR
 
 项目仓库：[eveloki/cliproxy-antigravity-docker](https://github.com/eveloki/cliproxy-antigravity-docker)。
-仓库已公开；推送会触发构建检查。镜像尚未发布，真实账号验收仍待完成。
+镜像地址：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`。
+所有镜像都保留 **NOT READY — PENDING TESTS** 状态；发布成功不等于真实账号验收通过。
 
-将文件提交到你自己的仓库后：
+在 `.env` 中设置下面这一行，然后拉取镜像：
 
-1. `main` push / PR 会运行检查并构建镜像，不推送 GHCR。
-2. Actions → **Experimental container (NOT READY)** → Run workflow，
-   勾选 `publish`，成功后发布 `ghcr.io/<owner>/<repo>:experimental`
-   和对应 `experimental-sha-<完整提交>`。
-3. 推送匹配 `v*-alpha*` 的标签也会发布实验镜像；不会添加 `latest`。
-4. 工作流使用仓库 `GITHUB_TOKEN` 的 `packages: write`，无须把个人 PAT 写入源码。
-   仓库/组织策略必须允许写包；GHCR 包是否公开需要在包设置中确认。
-5. 发布成功后，在 `.env` 设置 `IMAGE=ghcr.io/<owner>/<repo>:experimental`，再执行：
+```dotenv
+IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:experimental
+```
 
 ```bash
 docker compose pull
+docker compose run --rm --no-build cliproxy login
 docker compose up -d --no-build
 ```
 
-CI 的上游插件单测/ABI mock 检查不需要 Google 凭证，也不能替代真实认证验收。
+已有登录只需 `pull` 和 `up -d --no-build`，无需删除命名卷。自动发布不会自动更新你的运行中容器。
+发布标签包括：
+
+- `experimental`：最近成功发布的实验镜像。
+- `experimental-sha-<完整发行层提交>`：定位发行层源码版本。
+- `experimental-cpa-<版本>-plugin-<版本>-<发行层短提交>`：同时标明两项上游版本。
+- 匹配 `v*-alpha*` 的手工发行标签。不会生成 `latest`。
+
+回滚或严格锁定部署时，使用 Actions 发布摘要里的 `image@sha256:...` digest。
+
+### 自动跟踪上游
+
+`Update upstream releases and publish (experimental)` 每 6 小时运行一次：
+UTC 00:17 / 06:17 / 12:17 / 18:17，即北京时间 08:17 / 14:17 / 20:17 / 02:17。
+GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
+
+1. 查询 CPA 与插件的最新正式 GitHub Release，解析标签到完整 commit SHA。
+2. 拒绝草稿、预发布、版本回退和同版本标签被移动；跨主版本变化停止并报错，等待兼容性确认。
+3. 有更新时，先执行脚本测试、完整镜像构建、上游插件单测/ABI mock 测试，
+   再用无网络的 mock agy 检查 CPA → 插件调用是否正常。
+4. 上述检查通过后才提交 `upstream-versions.json` 和 Dockerfile 到 main；只允许 fast-forward，
+   其他人同时修改 main 时失败退出，不覆盖他人提交。
+5. 显式调用可复用发布工作流，对该确切提交重新检查后发布 GHCR。
+   不依赖机器人 push 触发另一个工作流，因此只需 `GITHUB_TOKEN`，无须 PAT。
+6. 没有新版本且对应提交的镜像已存在时跳过。提交已更新但发布失败时，下次检查会重试缺失镜像。
+
+任何构建/测试失败均不会发布候选镜像，已有 `experimental` 镜像继续可用。
+发布任务串行执行，并拒绝覆盖已被新 main 提交取代的版本。
+这套自动化只升级 CPA 和插件；不下载 Google 账号凭证、不打包或自动升级持久卷中的 agy。
+
+### 手动发布与权限
+
+- main push / PR 默认只检查并构建。
+- Actions → **Experimental container (NOT READY)** → Run workflow → 勾选 `publish` 可发布当前 main。
+- 上游检测流程需要 `contents: write` 更新版本锁；发布任务需要 `packages: write`。
+  若以后启用分支保护或组织限制，需要允许该机器人更新，或改用 PR 流程；不会绕过规则。
+- 公共仓库并不自动保证 GHCR 包公开；包可见性应设为 Public，才能匿名拉取。
+- 公共仓库长期无活动时，GitHub 可能暂停定时工作流；在 Actions 中重新启用即可。
+
+CI 的 mock agy 不使用 Google 账号，不能替代真实认证、推理和工具调用验收。
 稳定发布必须依据 [测试清单](docs/TESTING.md) 人工更新状态与版本策略。
 
 ## 上游与证据
