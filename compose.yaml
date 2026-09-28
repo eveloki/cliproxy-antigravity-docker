@@ -1,0 +1,32 @@
+name: cliproxy-antigravity
+services:
+  cliproxy:
+    image: ${IMAGE:-cliproxy-antigravity:experimental}
+    build:
+      context: .
+    platform: linux/amd64
+    environment:
+      TZ: Asia/Shanghai
+      GEMINI_FORCE_FILE_STORAGE: "true"
+      AGY_CLI_DISABLE_AUTO_UPDATE: "true"
+      AGY_AUTO_INSTALL: ${AGY_AUTO_INSTALL:-true}
+      AGY_INSTALLER_SHA256: ${AGY_INSTALLER_SHA256:-}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8317}:8317"
+    volumes:
+      - agy-home:/home/cliproxy
+      - cpa-config:/config
+    restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  agy-home:
+  cpa-config:

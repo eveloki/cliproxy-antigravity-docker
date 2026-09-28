@@ -1,0 +1,32 @@
+# NOT READY — PENDING REAL AUTH / RECREATION / TOOL-CALL TESTS.
+# Matched to the pinned CLIProxyAPI v8 source layout.
+config-version: 8
+server:
+  host: "0.0.0.0"
+  port: 8317
+management:
+  allow-remote: false
+  secret-key: ""
+  disable-control-panel: true
+access:
+  api-keys:
+    - "__GENERATED_CLIENT_KEY__"
+oauth:
+  auth-dir: "/home/cliproxy/.cli-proxy-api"
+observability:
+  logs:
+    debug: false
+    logging-to-file: false
+    request-log: false
+plugins:
+  enabled: true
+  dir: "/opt/cliproxy/plugins"
+  configs:
+    cliproxy-antigravity:
+      enabled: true
+      binary_path: "/usr/local/bin/agy"
+      workdir: "/home/cliproxy/workspace"
+      print_timeout: "30m"
+      dangerously_skip_permissions: false
+      sandbox: false
+      reasoning_effort: "high"

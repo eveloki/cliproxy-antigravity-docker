@@ -1,0 +1,8 @@
+**
+!Dockerfile
+!scripts/
+!scripts/**
+!config.example.yaml
+!LICENSE
+!THIRD_PARTY_NOTICES.md
+!STATUS

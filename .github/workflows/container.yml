@@ -1,0 +1,78 @@
+name: Experimental container (NOT READY)
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*-alpha*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish an experimental GHCR image (still NOT READY)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell and Python checks
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -v
+          docker compose config --quiet
+  image:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Resolve image name and publication mode
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REQUEST_PUBLISH: ${{ inputs.publish }}
+        run: |
+          echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          publish=false
+          if [[ "$EVENT" == push && "$REF" == refs/tags/v*-alpha* ]]; then publish=true; fi
+          if [[ "$EVENT" == workflow_dispatch && "$REQUEST_PUBLISH" == true ]]; then publish=true; fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        if: steps.image.outputs.publish == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ steps.image.outputs.name }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=experimental
+            type=sha,prefix=experimental-sha-,format=long
+            type=ref,event=tag
+          labels: |
+            io.cliproxy.distribution.status=NOT_READY_PENDING_TESTS
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ steps.image.outputs.publish == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
