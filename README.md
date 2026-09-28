@@ -171,7 +171,7 @@ Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固�
 项目仓库：[eveloki/cliproxy-antigravity-docker](https://github.com/eveloki/cliproxy-antigravity-docker)。
 历史实验镜像：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`（保留，不再更新）。
 新发布采用 `v<CPA版本>-<插件版本>`，例如 `v8.0.3-0.1.3`，并更新 `latest`。
-**此前路由修复已通过离线集成检查；新的 CLI 内置版本由 Actions 构建并发布，实际结果以工作流为准。**
+**当前三组件固定版本已构建并发布：[Actions 36388336156](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36388336156) 全部成功。**
 所有镜像都保留 **NOT READY — PENDING TESTS** 状态；发布成功不等于真实账号验收通过。
 
 在 `.env` 中设置下面这一行，然后拉取镜像：

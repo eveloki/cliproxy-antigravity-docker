@@ -162,3 +162,19 @@ CPA 不修改；无伪造 auth 文件；非插件命名空间不接管。
 - CI 新增非 root、断网容器执行真实 `agy --version`，随后独立执行 mock JSON/SSE 路由测试。
 - main push 与每六小时定时检查均自动检测 CPA/插件正式版，测试通过后发布固定标签和 latest。
 - 本次容器构建/发布结果待 Actions 确认；真实凭据与 gemini-3.5-flash-lite 推理仍未验收。
+
+## 官方 CLI 内置镜像发布通过（2026-09-28）
+
+[Actions 36388336156](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36388336156)
+在发行层提交 `5d44ee0a77e1e6e822ef6cfe8bcd5c57bb9d608c` 上全部成功。
+
+- update：检查 CPA/插件最新正式发布，当前版本未变；CLI 锁保持 1.2.12。
+- publish / validate：15 项单测、脚本、YAML/Compose 和版本锁验证通过。
+- publish / image：完整镜像构建成功；真实 `agy 1.2.12` 在非 root、断网容器中通过版本检查。
+- 独立 mock 测试通过非流式、SSE、客户端 401 和原生路由边界检查。
+- 已发布 `ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3-agy1.2.12-r1`。
+- `latest` 已指向相同 digest，并由工作流从注册表重新读取校验：
+  `sha256:a2242d813199a119fff4df331737a9845e400e0d69352ed9f3eb7ff5bb827988`。
+- 原有 experimental 标签未改动；真实账号凭据、模型推理和工具调用仍待验收。
+
+项目继续保持 **NOT READY — PENDING TESTS**。上面的“待 Actions 确认”是此次构建前记录。
