@@ -105,3 +105,24 @@ down/up 后推理：
 注册表鉴权、网络故障不会被当成版本缺失。没有移除或放宽上述 `503 auth_not_found` 集成检查。
 新增规则的离线测试覆盖版本组合、打包修订、上游更新重置修订号、digest 解析和注册表查询失败。
 固定版本及 latest 的实际首次推送，仍等待集成阻塞修复后验证。
+
+## 当前测试模型与凭据边界（2026-09-28）
+
+- 测试模型固定在 `scripts/test-model.txt`：`gemini-3.5-flash-lite`。
+- API 请求使用插件命名空间 `agy/gemini-3.5-flash-lite`，防止误测 CPA 内置 provider。
+- 离线 mock 注册该模型，并要求插件传入精确的 `--model gemini-3.5-flash-lite`。
+- 手动真实 smoke 先检查精确模型是否存在；不存在则失败，不自动切换模型。
+- 上方历史日志的 `agy/default` 保留为原始复现证据，不代表当前测试模型。
+- 未验证真实 agy/账号是否提供该模型。CPA 导出的 JSON 未被确认可用于 agy 登录，
+  因而没有引用 `ANTIGRAVITY_JSON`，没有执行真实账号测试。官方认证依据见 README。
+
+## 路由兼容补丁候选（2026-09-28）
+
+针对上述失败，在插件构建时应用 `compat/plugin-model-router.patch` 和路由适配源码，
+显式声明 `model_router`，处理 `model.route` 并对非空 `agy/*` 返回 `TargetKind=self`。
+CPA 不修改；无伪造 auth 文件；非插件命名空间不接管。
+打包修订递增为 r2，插件元数据标记 `0.1.3+cpa8-route1`。
+
+新增 Go 回归测试验证 ABI 分发、非流式/流式路由、原生模型排除和畸形输入。
+容器测试固定 `gemini-3.5-flash-lite`，同时验证 JSON、SSE 完整终止、实际 mock 进程调用记录、
+无 CPA 凭据以及客户端 API key 缺失返回 401。CI 结果待记录，不提前声明修复成功。

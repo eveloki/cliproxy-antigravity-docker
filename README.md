@@ -3,17 +3,22 @@
 > **🚧 项目未就绪，等待测试 / NOT READY — PENDING TESTS**
 >
 > 已发布实验镜像，但新增的容器集成测试发现阻塞：CPA v8.0.3 + 插件 v0.1.3
-> 的聊天请求返回 `503 auth_not_found`，尚未调用到 agy。自动发布检查会阻止失败候选发布及 latest 移动。
+> 的聊天请求返回 `503 auth_not_found`，尚未调用到 agy。现已加入最小路由兼容补丁，等待 CI 实测。
+> 自动发布检查会阻止失败候选发布及 latest 移动。
 > 真实 Google 登录、认证复用、流式响应和工具调用闭环也仍未完成验证。
 > **不能作为已验证的一键可用方案，也不建议用于生产。**
 > CI 通过不会自动改变此状态。验收记录见 [docs/TESTING.md](docs/TESTING.md)。
 
 将 CLIProxyAPI、cliproxy-antigravity 插件和官方 `agy` 的安装流程集中到一个
-Compose 服务中。只维护 Docker/启动脚本和配置，不 fork 或修改上游业务代码。
+Compose 服务中。维护 Docker/启动脚本、配置，以及一个显式的
+[插件路由兼容补丁](compat/README.md)。CPA 源码不变；插件打包版本为 `0.1.3+cpa8-route1`。
+补丁只将 `agy/*` 请求交给插件自身执行器，不添加 CPA 上游凭据，也不改变官方 CLI 的登录方式。
 
 调用链：客户端 → CLIProxyAPI → cliproxy-antigravity 动态库 → 官方 agy 子进程 → Google。
 客户端工具调用由上游插件模拟为 OpenAI `tool_calls`，工具结果由客户端传回；
 本项目不另外实现 tool bridge。上游的原生工具权限仍然适用。
+
+当前打包修订为 `v8.0.3-0.1.3-r2`，包含上述路由修复；旧 `experimental` 镜像不变。
 
 ## 包含什么
 
@@ -61,8 +66,10 @@ docker compose logs --tail=80 cliproxy
 docker compose exec cliproxy python3 -c 'import yaml; print(yaml.safe_load(open("/config/config.yaml"))["access"]["api-keys"][0])'
 ```
 
-客户端 Base URL：`http://127.0.0.1:8317/v1`。先使用模型 `agy/default`；
-其他模型名称以真实 `agy models` 和 API `/v1/models` 返回为准。
+客户端 Base URL：`http://127.0.0.1:8317/v1`。当前测试模型固定为 `gemini-3.5-flash-lite`，
+通过插件请求时使用 `agy/gemini-3.5-flash-lite`。统一配置在 `scripts/test-model.txt`。
+CLI 和 API 的模型列表必须包含目标模型；缺失直接失败，不回退到默认或其他模型。
+这个固定值来自测试要求，不代表已经验证该账号或当前 agy 提供此模型。
 
 ## 验证调用与持久化
 
@@ -70,7 +77,7 @@ docker compose exec cliproxy python3 -c 'import yaml; print(yaml.safe_load(open(
 
 ```bash
 docker compose exec cliproxy /opt/cliproxy/scripts/doctor.sh
-docker compose exec cliproxy agy -p 'Reply only with OK'
+docker compose exec cliproxy agy --model gemini-3.5-flash-lite -p 'Reply only with OK'
 docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py
 docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --stream
 docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
@@ -80,7 +87,7 @@ docker compose down
 docker compose up -d
 
 # 新进程 + 新容器中的真实推理才是关键验证
-docker compose exec cliproxy agy -p 'Reply only with OK'
+docker compose exec cliproxy agy --model gemini-3.5-flash-lite -p 'Reply only with OK'
 docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
 ```
 
@@ -108,6 +115,22 @@ docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
 `docker compose down` 保留卷；**`docker compose down -v` 会删除卷**。
 不要将卷备份、Google 凭证或实际配置提交到 GitHub、上传到 GHCR。
 实验阶段建议单实例访问这组凭证，先验证串行请求再测试并发。
+
+## CPA 导出凭据与官方 CLI
+
+CPA 的 Antigravity JSON（如 `type: antigravity`、`access_token`、`refresh_token`、
+`expired`）供 CPA 内置 `antigravity` provider 使用，不是官方 agy 的凭据导入格式。
+放进 CPA 的 auth-dir 不会给 `agy` provider 或官方 CLI 建立登录会话。
+
+官方 [安装与认证文档](https://antigravity.google/docs/cli/install/)说明 CLI 自身的
+keyring/远程 OAuth 登录，以及 Gemini API key 模式；[企业文档](https://antigravity.google/docs/enterprise/)
+另提供 ADC。没有据此确认 CPA JSON 可以直接导入，也没有验证字段转换方案。
+Repository Secret `ANTIGRAVITY_JSON` 暂不被工作流引用，未将它写入 CLI 目录、镜像或日志。
+真实 CLI 测试仍需可复用的官方登录会话或选定的受支持认证方式。
+
+当前 CI 是无网络的 mock agy 测试，不消费真实账号额度。固定模型同时用于 mock 和手动实测；
+mock 会检查插件传入的 `--model` 参数，但不能证明真实服务提供该模型。
+已发现的 CPA → 插件 `auth_not_found` 路由阻塞不会因导入 CPA 内置 provider 的凭据而消失。
 
 ## 修改配置
 
@@ -183,8 +206,9 @@ docker compose up -d --no-build
 不会当成“标签不存在”。有权限的人员仍可在流程外改动标签；严格锁定请使用 `image@sha256:...`。
 
 同一上游组合需要修改 Dockerfile、启动脚本或基础镜像时，将 `upstream-versions.json`
-中的 `packaging_revision` 从 1 递增到 2、3……，生成 `-r2`、`-r3` 标签。
+中的 `packaging_revision` 递增到 2、3……，生成 `-r2`、`-r3` 标签。
 任何上游版本更新时自动重置为 1，采用新组合的基础标签。
+若新版上游不能应用兼容补丁或路由测试失败，自动更新停止，必须先审阅适配或移除补丁。
 仅修改文档不产生新的打包版本；重复执行不会重建并覆盖已经发布的版本标签。
 
 ### 自动跟踪上游

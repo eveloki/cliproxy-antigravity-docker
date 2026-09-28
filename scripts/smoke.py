@@ -6,10 +6,13 @@ from pathlib import Path
 import urllib.request
 import yaml
 
+TEST_MODEL = Path(__file__).with_name('test-model.txt').read_text().strip()
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='agy/default')
+    parser.add_argument('--model', choices=[TEST_MODEL], default=TEST_MODEL,
+                        help='Pinned test model; other models and default fallback are disabled.')
     parser.add_argument('--tools', action='store_true')
     parser.add_argument('--stream', action='store_true')
     args = parser.parse_args()
@@ -25,8 +28,16 @@ def main():
                 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
         return opener.open(req, timeout=300)
 
+    # Prefix selects the CLI plugin model, never CPA's native Antigravity provider.
+    api_model = 'agy/' + args.model
+    req = urllib.request.Request('http://127.0.0.1:8317/v1/models',
+        headers={'Authorization': 'Bearer ' + key})
+    with opener.open(req, timeout=30) as response:
+        models = json.load(response)['data']
+    if not any(model['id'] == api_model for model in models):
+        raise RuntimeError(f'Pinned plugin model unavailable: {api_model}; no fallback allowed')
     messages = [{'role': 'user', 'content': 'Reply only with OK.'}]
-    payload = {'model': args.model, 'messages': messages, 'stream': args.stream}
+    payload = {'model': api_model, 'messages': messages, 'stream': args.stream}
     if args.tools:
         messages[0]['content'] = 'Call probe_echo with value ping. After receiving its result, reply with the returned value.'
         payload['tools'] = [{'type': 'function', 'function': {

@@ -15,7 +15,12 @@ WORKDIR /src/cpa
 RUN go mod download && go mod verify && \
     go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT}" -o /out/CLIProxyAPI ./cmd/server/
 WORKDIR /src/plugin
-RUN go test ./... && \
+COPY compat/ /compat/
+RUN git apply --check /compat/plugin-model-router.patch && \
+    git apply /compat/plugin-model-router.patch && \
+    cp /compat/distribution_router*.go . && \
+    gofmt -w distribution_router*.go plugin.go && \
+    go test ./... && \
     go build -trimpath -buildmode=c-shared -ldflags="-s -w" -o /out/cliproxy-antigravity.so . && \
     python3 scripts/abi_smoke.py /out/cliproxy-antigravity.so
 RUN mkdir -p /out/licenses && \
@@ -23,6 +28,8 @@ RUN mkdir -p /out/licenses && \
     cp /src/plugin/LICENSE /out/licenses/cliproxy-antigravity.LICENSE && \
     cp /src/plugin/THIRD_PARTY_NOTICES.md /out/licenses/plugin-THIRD_PARTY_NOTICES.md && \
     printf 'CPA_VERSION=%s\nCPA_COMMIT=%s\nPLUGIN_VERSION=%s\nPLUGIN_COMMIT=%s\n' "$CPA_VERSION" "$CPA_COMMIT" "$PLUGIN_VERSION" "$PLUGIN_COMMIT" > /out/upstream-versions.txt
+RUN printf 'PLUGIN_COMPAT=cpa8-route1\n' >> /out/upstream-versions.txt && \
+    cd /compat && sha256sum plugin-model-router.patch distribution_router.go >> /out/upstream-versions.txt
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
