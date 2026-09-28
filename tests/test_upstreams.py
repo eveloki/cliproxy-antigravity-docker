@@ -25,9 +25,11 @@ class UpstreamTests(unittest.TestCase):
         return self.replies[path]
 
     def test_unchanged_is_idempotent(self):
+        self.lock['packaging_revision'] = 2
         self.assertEqual(upstreams.next_lock(self.lock, self.get), self.lock)
 
     def test_patch_update_and_annotated_tag(self):
+        self.lock['packaging_revision'] = 3
         entry = self.lock['cpa']
         major, minor, patch = upstreams.version_tuple(entry['version'])
         tag = f'v{major}.{minor}.{patch + 1}'
@@ -39,7 +41,20 @@ class UpstreamTests(unittest.TestCase):
         result = upstreams.next_lock(self.lock, self.get)
         self.assertEqual(result['cpa']['version'], tag)
         self.assertEqual(result['cpa']['commit'], 'b' * 40)
+        self.assertEqual(result['packaging_revision'], 1)
         self.assertEqual(self.lock, before)
+
+    def test_fixed_tag_and_packaging_revision(self):
+        self.lock['cpa']['version'] = 'v8.0.3'
+        self.lock['plugin']['version'] = '0.1.3'
+        self.lock['packaging_revision'] = 1
+        self.assertEqual(upstreams.image_tag(self.lock), 'v8.0.3-0.1.3')
+        self.lock['packaging_revision'] = 2
+        self.assertEqual(upstreams.image_tag(self.lock), 'v8.0.3-0.1.3-r2')
+        for revision in [0, -1, True, '2']:
+            self.lock['packaging_revision'] = revision
+            with self.assertRaises(ValueError):
+                upstreams.image_tag(self.lock)
 
     def test_moved_tag_is_rejected(self):
         entry = self.lock['cpa']

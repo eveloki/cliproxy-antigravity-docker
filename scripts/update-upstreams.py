@@ -62,7 +62,17 @@ def next_lock(current, get=api):
         if new_version == old_version and commit != old['commit']:
             raise ValueError(f'Upstream tag moved without a version change: {version}')
         proposed[key] = {'repository': repository, 'version': version, 'commit': commit}
+    if any(proposed[key] != current[key] for key in REPOSITORIES):
+        proposed['packaging_revision'] = 1
     return proposed
+
+
+def image_tag(lock):
+    versions = ['.'.join(map(str, version_tuple(lock[key]['version']))) for key in REPOSITORIES]
+    revision = lock.get('packaging_revision', 1)
+    if type(revision) is not int or revision < 1:
+        raise ValueError('packaging_revision must be a positive integer')
+    return 'v' + '-'.join(versions) + (f'-r{revision}' if revision > 1 else '')
 
 
 def render_dockerfile(content, lock):
@@ -86,6 +96,7 @@ def main():
     current = json.loads(lock_path.read_text())
     if current.get('schema') != 1:
         raise ValueError('Unsupported lock schema')
+    image_tag(current)
     dockerfile = docker_path.read_text()
     if render_dockerfile(dockerfile, current) != dockerfile:
         raise ValueError('Dockerfile pins disagree with upstream-versions.json')
@@ -96,7 +107,7 @@ def main():
         docker_path.write_text(updated_dockerfile)
         lock_path.write_text(json.dumps(proposed, indent=2) + '\n')
     suffix = f'cpa-{proposed["cpa"]["version"].lstrip("v")}-plugin-{proposed["plugin"]["version"].lstrip("v")}'
-    outputs = {'changed': str(changed).lower(), 'version_suffix': suffix}
+    outputs = {'changed': str(changed).lower(), 'version_suffix': suffix, 'image_tag': image_tag(proposed)}
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             for key, value in outputs.items():

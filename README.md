@@ -3,7 +3,7 @@
 > **🚧 项目未就绪，等待测试 / NOT READY — PENDING TESTS**
 >
 > 已发布实验镜像，但新增的容器集成测试发现阻塞：CPA v8.0.3 + 插件 v0.1.3
-> 的聊天请求返回 `503 auth_not_found`，尚未调用到 agy。自动发布检查会阻止失败候选覆盖镜像。
+> 的聊天请求返回 `503 auth_not_found`，尚未调用到 agy。自动发布检查会阻止失败候选发布及 latest 移动。
 > 真实 Google 登录、认证复用、流式响应和工具调用闭环也仍未完成验证。
 > **不能作为已验证的一键可用方案，也不建议用于生产。**
 > CI 通过不会自动改变此状态。验收记录见 [docs/TESTING.md](docs/TESTING.md)。
@@ -23,7 +23,7 @@ Compose 服务中。只维护 Docker/启动脚本和配置，不 fork 或修改�
 - UID/GID 10001 非 root 运行；持久化整个用户目录与 CPA 配置。
 - 自动生成随机客户端 API key；默认只将 API 暴露到宿主机 `127.0.0.1`。
 - 显式登录、诊断、真实请求 smoke 脚本；本地 healthcheck 不调用 Google。
-- GitHub Actions 构建与实验 GHCR 发布，每 6 小时检查上游正式 Release；不会生成 `latest`。
+- GitHub Actions 构建与实验 GHCR 发布，每 6 小时检查上游正式 Release；固定组合版本，`latest` 跟随最近成功发布。
 
 首版仅提供 `linux/amd64` 构建目标。ARM64、Windows/macOS Docker Desktop
 均未验证；不要把上游的跨平台支持等同于本发行版已经验证。
@@ -146,13 +146,16 @@ Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固�
 ## GitHub 与 GHCR
 
 项目仓库：[eveloki/cliproxy-antigravity-docker](https://github.com/eveloki/cliproxy-antigravity-docker)。
-镜像地址：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`。
+历史实验镜像：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`（保留，不再更新）。
+新发布采用 `v<CPA版本>-<插件版本>`，例如 `v8.0.3-0.1.3`，并更新 `latest`。
+**当前集成测试仍失败，新版本标签和 latest 尚未发布；下面是通过检查后的使用方式。**
 所有镜像都保留 **NOT READY — PENDING TESTS** 状态；发布成功不等于真实账号验收通过。
 
 在 `.env` 中设置下面这一行，然后拉取镜像：
 
 ```dotenv
-IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:experimental
+IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3
+# 若希望手动 pull 时跟随更新，可改用 :latest
 ```
 
 ```bash
@@ -162,14 +165,27 @@ docker compose up -d --no-build
 ```
 
 已有登录只需 `pull` 和 `up -d --no-build`，无需删除命名卷。自动发布不会自动更新你的运行中容器。
-发布标签包括：
+发布标签规则：
 
-- `experimental`：最近成功发布的实验镜像。
-- `experimental-sha-<完整发行层提交>`：定位发行层源码版本。
-- `experimental-cpa-<版本>-plugin-<版本>-<发行层短提交>`：同时标明两项上游版本。
-- 匹配 `v*-alpha*` 的手工发行标签。不会生成 `latest`。
+| 标签 | 含义 | 是否移动 |
+| --- | --- | --- |
+| `v8.0.3-0.1.3` | CPA 8.0.3 + 插件 0.1.3 的首次打包 | 发布流程不覆盖 |
+| `v8.0.3-0.1.3-r2` | 相同上游版本的第 2 次打包修订 | 发布流程不覆盖 |
+| `latest` | 最近成功发布的组合版本，与其 digest 一致 | 新版本通过检查后移动 |
+| `sha-<完整发行层提交>` | 首次发布该版本所用的源码提交 | 随固定版本一并发布 |
+| `experimental` 及已有 `experimental-*` | 历史实验镜像 | 保留，不再更新 |
 
-回滚或严格锁定部署时，使用 Actions 发布摘要里的 `image@sha256:...` digest。
+`latest` 不代表项目已就绪；镜像标签和文档仍标记 **NOT READY — PENDING TESTS**。
+`v8.0.3-0.1.3` 是两个上游版本的组合标识，不按单个 SemVer 的预发布规则排序。
+
+版本标签本身不是注册表强制不可变：本仓库通过串行发布和发布前检查保证不覆盖，
+若标签已存在则保留其 digest，仅修复 `latest` 指向。鉴权或网络查询失败会终止发布，
+不会当成“标签不存在”。有权限的人员仍可在流程外改动标签；严格锁定请使用 `image@sha256:...`。
+
+同一上游组合需要修改 Dockerfile、启动脚本或基础镜像时，将 `upstream-versions.json`
+中的 `packaging_revision` 从 1 递增到 2、3……，生成 `-r2`、`-r3` 标签。
+任何上游版本更新时自动重置为 1，采用新组合的基础标签。
+仅修改文档不产生新的打包版本；重复执行不会重建并覆盖已经发布的版本标签。
 
 ### 自动跟踪上游
 
@@ -185,9 +201,10 @@ GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
    其他人同时修改 main 时失败退出，不覆盖他人提交。
 5. 显式调用可复用发布工作流，对该确切提交重新检查后发布 GHCR。
    不依赖机器人 push 触发另一个工作流，因此只需 `GITHUB_TOKEN`，无须 PAT。
-6. 没有新版本且对应提交的镜像已存在时跳过。提交已更新但发布失败时，下次检查会重试缺失镜像。
+6. 固定版本已存在且 `latest` 与其 digest 一致时跳过。缺失版本或 latest 更新中断时，下次检查重试；
+   已存在的固定版本不会覆盖，latest 从其现有 digest 创建，并验证二者一致。
 
-任何构建/测试失败均不会发布候选镜像，已有 `experimental` 镜像继续可用。
+任何构建/测试失败均不会发布候选镜像或移动 `latest`。已有镜像保留；这不表示其功能已验证。
 发布任务串行执行，并拒绝覆盖已被新 main 提交取代的版本。
 这套自动化只升级 CPA 和插件；不下载 Google 账号凭证、不打包或自动升级持久卷中的 agy。
 
@@ -195,6 +212,7 @@ GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
 
 - main push / PR 默认只检查并构建。
 - Actions → **Experimental container (NOT READY)** → Run workflow → 勾选 `publish` 可发布当前 main。
+  Git tag push 不再单独触发发布，镜像版本统一取自版本锁，避免产生任意标签。
 - 上游检测流程需要 `contents: write` 更新版本锁；发布任务需要 `packages: write`。
   若以后启用分支保护或组织限制，需要允许该机器人更新，或改用 PR 流程；不会绕过规则。
 - 公共仓库并不自动保证 GHCR 包公开；包可见性应设为 Public，才能匿名拉取。

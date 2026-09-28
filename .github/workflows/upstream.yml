@@ -35,7 +35,6 @@ jobs:
           python3 scripts/update-upstreams.py
           docker compose config --quiet
       - uses: docker/setup-buildx-action@v3
-        if: steps.upstream.outputs.changed == 'true'
       - name: Build candidate before changing main
         if: steps.upstream.outputs.changed == 'true'
         uses: docker/build-push-action@v6
@@ -73,12 +72,16 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
           CHANGED: ${{ steps.upstream.outputs.changed }}
+          VERSION: ${{ steps.upstream.outputs.image_tag }}
         run: |
           sha=$(git rev-parse HEAD)
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           publish=true
-          # Retry a failed publication next schedule even if no new release appears.
-          if [[ "$CHANGED" != true ]] && docker manifest inspect "ghcr.io/${REPOSITORY,,}:experimental-sha-$sha" >/dev/null 2>&1; then
+          # Retry missing version publication OR an interrupted latest promotion.
+          image="ghcr.io/${REPOSITORY,,}"
+          version_digest=$(python3 scripts/image-digest.py "$image:$VERSION")
+          latest_digest=$(python3 scripts/image-digest.py "$image:latest")
+          if [[ -n "$version_digest" && "$latest_digest" == "$version_digest" ]]; then
             publish=false
           fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"

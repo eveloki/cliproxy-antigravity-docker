@@ -3,11 +3,10 @@ on:
   pull_request:
   push:
     branches: [main]
-    tags: ['v*-alpha*']
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish an experimental GHCR image (still NOT READY)
+        description: Publish a fixed version and latest (still NOT READY)
         type: boolean
         default: false
   workflow_call:
@@ -57,15 +56,11 @@ jobs:
         id: image
         env:
           REPOSITORY: ${{ github.repository }}
-          EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref }}
           REQUEST_PUBLISH: ${{ inputs.publish }}
         run: |
           echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "short_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
           publish=false
-          if [[ "$EVENT" == push && "$REF" == refs/tags/v*-alpha* ]]; then publish=true; fi
           if [[ "$REQUEST_PUBLISH" == true ]]; then publish=true; fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           python3 scripts/update-upstreams.py
@@ -75,10 +70,8 @@ jobs:
           images: ${{ steps.image.outputs.name }}
           flavor: latest=false
           tags: |
-            type=raw,value=experimental
-            type=raw,value=experimental-sha-${{ steps.image.outputs.sha }}
-            type=raw,value=experimental-${{ steps.image.outputs.version_suffix }}-${{ steps.image.outputs.short_sha }}
-            type=ref,event=tag
+            type=raw,value=${{ steps.image.outputs.image_tag }}
+            type=raw,value=sha-${{ steps.image.outputs.sha }}
           labels: |
             org.opencontainers.image.revision=${{ steps.image.outputs.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -107,9 +100,21 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Preserve an existing fixed version
+        id: version
+        if: steps.image.outputs.publish == 'true'
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ steps.image.outputs.image_tag }}
+        run: |
+          digest=$(python3 scripts/image-digest.py "$IMAGE:$VERSION")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          if [[ -n "$digest" ]]; then
+            echo "Preserving $IMAGE:$VERSION at $digest. Bump packaging_revision to publish different content."
+          fi
       - name: Publish tested build with attestations
         id: publish
-        if: steps.image.outputs.publish == 'true'
+        if: steps.image.outputs.publish == 'true' && steps.version.outputs.digest == ''
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -121,18 +126,24 @@ jobs:
           cache-to: type=gha,mode=max,scope=cliproxy-amd64
           provenance: true
           sbom: true
-      - name: Verify published manifest and record digest
+      - name: Point latest at the fixed version and verify both digests
         if: steps.image.outputs.publish == 'true'
         env:
           IMAGE: ${{ steps.image.outputs.name }}
-          DIGEST: ${{ steps.publish.outputs.digest }}
+          VERSION: ${{ steps.image.outputs.image_tag }}
+          DIGEST: ${{ steps.publish.outputs.digest || steps.version.outputs.digest }}
           SOURCE_SHA: ${{ steps.image.outputs.sha }}
         run: |
-          docker buildx imagetools inspect "$IMAGE@$DIGEST"
+          current=$(git ls-remote origin refs/heads/main | cut -f1)
+          [[ "$current" == "$SOURCE_SHA" ]] || { echo 'Main changed; refusing to move latest.'; exit 1; }
+          [[ -n "$DIGEST" && "$(python3 scripts/image-digest.py "$IMAGE:$VERSION")" == "$DIGEST" ]]
+          docker buildx imagetools create --prefer-index=false --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
+          [[ "$(python3 scripts/image-digest.py "$IMAGE:latest")" == "$DIGEST" ]]
           {
-            echo '### Experimental image published — NOT READY'
-            echo "- Image: \`$IMAGE:experimental\`"
-            echo "- Digest: \`$IMAGE@$DIGEST\`"
-            echo "- Source: \`$SOURCE_SHA\`"
+            echo '### Version published — NOT READY / PENDING TESTS'
+            echo "- Fixed version: \`$IMAGE:$VERSION\`"
+            echo "- Moving alias: \`$IMAGE:latest\`"
+            echo "- Digest (both tags): \`$IMAGE@$DIGEST\`"
+            echo "- Workflow checkout: \`$SOURCE_SHA\` (an existing version retains its original source label)"
             echo '- Real Google OAuth and tool-call acceptance tests remain pending.'
           } >> "$GITHUB_STEP_SUMMARY"
