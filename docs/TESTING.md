@@ -7,7 +7,7 @@
 | 本地脚本和配置检查 | 已通过（2026-09-28） | 见下面本次执行记录 |
 | Docker amd64 完整构建 | 已通过（2026-09-28 首次 CI） | CPA、插件编译及上游 ABI mock 测试成功 |
 | CPA 实际加载插件 | 已通过（CI mock） | 无 ABI/协议加载错误，`agy/default` 注册可用 |
-| 无网络容器模拟推理 | **失败：503 auth_not_found** | CPA 必须调用 mock agy 并返回模拟响应 |
+| 无网络容器模拟推理 | **已通过：r2 路由与 SSE 补丁** | 普通响应、SSE、精确模型、401 和原生路由检查均通过 |
 | agy 首次安装 | 未执行 | 官方安装器成功，版本与安装位置可确认 |
 | 容器内 Google 登录 | 未执行 | 官方交互登录成功，无 keyring 阻断 |
 | 文件凭证复用 | 未执行 | 新 agy 进程可多次完成真实推理 |
@@ -27,7 +27,7 @@
 
 日期：2026-09-28。
 
-- `python3 -m unittest discover -s tests -v`：10/10 通过（包含 6 项版本检测测试）。
+- `python3 -m unittest discover -s tests -v`：15/15 通过（包含版本与注册表检查）。
   覆盖配置重复初始化不会轮换 key、配置权限 0600、用户修改保留、
   错误模板不产生半成品、已有 agy 复用、禁用安装时缺失 agy 正确失败。
 - `python3 -m compileall -q scripts tests`：通过。
@@ -92,9 +92,9 @@ down/up 后推理：
 
   测试使用本地 mock agy，不使用 Google 账号，错误发生在 CPA 选择 provider auth 的阶段。
   上游插件声明不注入伪造 CPA 凭证；因此没有通过伪造 auth 文件或删除测试绕过问题。
-  目前判为该上游组合的集成阻塞，具体上游修复尚未完成。
+  当时判为该上游组合的集成阻塞；现由下方 r2 兼容补丁修复，未宣称上游版本自身已修复。
 - 每 6 小时的检查已配置；有同主版本正式更新时，先构建并测试候选，成功后才提交版本锁并发布。
-  当前组合仍会被上述门禁拦下，旧 experimental 镜像也不能视为可用版本。
+  当时未打补丁的组合被上述门禁拦下，旧 experimental 镜像仍不能视为可用版本。
   真正的上游版本变化、自动提交及后续成功发布路径仍需在兼容版本到来时验证。
 
 ## 固定版本发布策略（2026-09-28）
@@ -132,3 +132,21 @@ CPA 不修改；无伪造 auth 文件；非插件命名空间不接管。
 扩展 SSE 测试发现第二项兼容问题：插件发送完整 SSE 帧，而 CPA 再添加 `data:`，导致双层封装。
 现在补丁在 host stream callback 边界发送纯 JSON，并由 CPA 统一发送 `[DONE]`；
 测试同时拒绝重复终止帧。完整回归结果待下一次 CI。
+
+## 路由修复验收通过（2026-09-28）
+
+[完整 Actions 36377898486](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36377898486) 在提交
+`c5128e09ffd9f22d40097a5247f44ea1bf6f5b89` 上全部成功。
+
+- validate：脚本/配置/版本锁检查通过。
+- image：CPA 构建、打补丁后的插件 Go 单测、上游 ABI smoke、Docker 构建通过。
+- 无网络、非 root、无 CPA 上游凭据的容器内，
+  `agy/gemini-3.5-flash-lite` 普通请求返回预期 mock 响应。
+- 流式请求获得正确内容、finish_reason 和唯一 `[DONE]`；不再双重 SSE 封装。
+- mock 子进程记录确认实际收到 `--model gemini-3.5-flash-lite`，普通和流式各一次。
+- 无客户端 key 返回 401；不带 agy/ 前缀的原生请求没有被插件接管。
+- 未读取 `ANTIGRAVITY_JSON`，未执行 Google OAuth 或真实推理。
+
+结论：原 `auth_not_found` 阻塞与随后发现的 SSE 封装问题已在发行层兼容补丁中修复。
+打包版本为 `v8.0.3-0.1.3-r2`，项目仍为 **NOT READY — PENDING TESTS**。
+这次 main push 的完整 CI 为构建验证模式，发布步骤跳过；不等同于 r2/latest 已发布。

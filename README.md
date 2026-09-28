@@ -2,10 +2,9 @@
 
 > **🚧 项目未就绪，等待测试 / NOT READY — PENDING TESTS**
 >
-> 已发布实验镜像，但新增的容器集成测试发现阻塞：CPA v8.0.3 + 插件 v0.1.3
-> 的聊天请求返回 `503 auth_not_found`，尚未调用到 agy。现已加入最小路由兼容补丁，等待 CI 实测。
-> 自动发布检查会阻止失败候选发布及 latest 移动。
-> 真实 Google 登录、认证复用、流式响应和工具调用闭环也仍未完成验证。
+> CPA → 插件的 `auth_not_found` 已由兼容补丁修复；指定模型的无网络 mock 测试
+> 已通过普通响应、SSE、客户端认证及路由边界检查。
+> 真实 Google 登录、凭据复用、实际模型可用性和工具调用闭环仍未验证。
 > **不能作为已验证的一键可用方案，也不建议用于生产。**
 > CI 通过不会自动改变此状态。验收记录见 [docs/TESTING.md](docs/TESTING.md)。
 
@@ -130,7 +129,7 @@ Repository Secret `ANTIGRAVITY_JSON` 暂不被工作流引用，未将它写入 
 
 当前 CI 是无网络的 mock agy 测试，不消费真实账号额度。固定模型同时用于 mock 和手动实测；
 mock 会检查插件传入的 `--model` 参数，但不能证明真实服务提供该模型。
-已发现的 CPA → 插件 `auth_not_found` 路由阻塞不会因导入 CPA 内置 provider 的凭据而消失。
+CPA → 插件的路由阻塞已通过兼容补丁独立修复；该结果不依赖导入 CPA 内置 provider 的凭据。
 
 ## 修改配置
 
@@ -171,13 +170,13 @@ Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固�
 项目仓库：[eveloki/cliproxy-antigravity-docker](https://github.com/eveloki/cliproxy-antigravity-docker)。
 历史实验镜像：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`（保留，不再更新）。
 新发布采用 `v<CPA版本>-<插件版本>`，例如 `v8.0.3-0.1.3`，并更新 `latest`。
-**当前集成测试仍失败，新版本标签和 latest 尚未发布；下面是通过检查后的使用方式。**
+**r2 已通过离线容器集成检查；本次修复 CI 仅构建验证，不执行发布。下面命令需等待对应标签实际发布。**
 所有镜像都保留 **NOT READY — PENDING TESTS** 状态；发布成功不等于真实账号验收通过。
 
 在 `.env` 中设置下面这一行，然后拉取镜像：
 
 ```dotenv
-IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3
+IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3-r2
 # 若希望手动 pull 时跟随更新，可改用 :latest
 ```
 
