@@ -6,7 +6,8 @@
 | --- | --- | --- |
 | 本地脚本和配置检查 | 已通过（2026-09-28） | 见下面本次执行记录 |
 | Docker amd64 完整构建 | 已通过（2026-09-28 首次 CI） | CPA、插件编译及上游 ABI mock 测试成功 |
-| CPA 实际加载插件 | 未执行 | 无 ABI/协议加载错误，`agy/default` 注册可用 |
+| CPA 实际加载插件 | 已通过（CI mock） | 无 ABI/协议加载错误，`agy/default` 注册可用 |
+| 无网络容器模拟推理 | **失败：503 auth_not_found** | CPA 必须调用 mock agy 并返回模拟响应 |
 | agy 首次安装 | 未执行 | 官方安装器成功，版本与安装位置可确认 |
 | 容器内 Google 登录 | 未执行 | 官方交互登录成功，无 keyring 阻断 |
 | 文件凭证复用 | 未执行 | 新 agy 进程可多次完成真实推理 |
@@ -18,14 +19,15 @@
 | 流式工具闭环 | 未执行 | Cline/RooCode 等客户端工具调用、参数、回传正确 |
 | 并发请求 / 取消 | 未执行 | 无凭证竞争、会话串线和孤儿 agy 进程 |
 | 超时 / 断网 / token 撤销 | 未执行 | 返回可诊断错误，不无限挂起或重试 |
-| GHCR 发布与拉取 | 未执行 | 干净机器拉取 experimental 镜像并重复以上测试 |
+| GHCR 发布 | 已通过（首次实验镜像，公开包） | 见下方发布记录；不能据此判定可用 |
+| 干净机器拉取并运行 | 未执行 | 拉取 experimental 镜像并重复以上真实测试 |
 | ARM64 / Docker Desktop | 未执行 | 不属于首版已支持范围 |
 
 ## 本次本地执行记录
 
 日期：2026-09-28。
 
-- `python3 -m unittest discover -s tests -v`：4/4 通过。
+- `python3 -m unittest discover -s tests -v`：10/10 通过（包含 6 项版本检测测试）。
   覆盖配置重复初始化不会轮换 key、配置权限 0600、用户修改保留、
   错误模板不产生半成品、已有 agy 复用、禁用安装时缺失 agy 正确失败。
 - `python3 -m compileall -q scripts tests`：通过。
@@ -34,9 +36,9 @@
 - 核对插件路径和 API-key 模板占位符：通过。
 - 当前执行环境无 Docker、Go、ShellCheck。因此未执行 `docker compose config`、
   Docker build、Go 单测、插件 ABI mock 或真实 agy/OAuth/API 测试。
-  Dockerfile/CI 已定义相关构建检查，尚未运行。
+  这些检查随后在 GitHub Actions 执行，结果见下方 CI 记录。
 
-这些结果仅验证薄层脚本的离线行为，不代表镜像可以成功构建或账号可正常调用。
+本地结果仅验证薄层脚本的离线行为；CI 构建结果另列，均不能证明真实账号可正常调用。
 
 ## 实机记录模板
 
@@ -71,3 +73,26 @@ down/up 后推理：
 在提交 `4096e59e1c4590b85b81e2177d1260e71ff8e449` 上成功，完成 Docker 构建及构建内的插件测试。
 这次运行没有发布镜像。后续发布工作流额外要求无网络 mock agy 容器测试；
 它只验证打包与路由，不证明真实 Google 凭证有效。
+
+## 发布、自动更新与已知阻塞（2026-09-28）
+
+- 首次发布 [run 36368680680](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36368680680) 成功。
+  公开镜像 `ghcr.io/eveloki/cliproxy-antigravity-docker:experimental` 对应发行层提交
+  `4096e59e1c4590b85b81e2177d1260e71ff8e449`；该版本发布时尚无下面的容器路由检查。
+- 自动更新试运行 [run 36369226939](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36369226939)
+  成功查询两项上游正式 Release，确认 CPA v8.0.3 / 插件 v0.1.3 未变，
+  并因当前发行层提交尚无镜像而进入发布重试；随后的集成检查正确阻止发布。
+- 带诊断日志的复现 [run 36369485927](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36369485927)：
+  编译、插件单测、ABI mock 均成功。容器以非 root、断网模式启动，插件加载成功，
+  `/v1/models` 返回 `agy/default`；但 `/v1/chat/completions` 返回：
+
+  ```text
+  503 auth_not_found: no auth available (providers=agy, model=agy/default)
+  ```
+
+  测试使用本地 mock agy，不使用 Google 账号，错误发生在 CPA 选择 provider auth 的阶段。
+  上游插件声明不注入伪造 CPA 凭证；因此没有通过伪造 auth 文件或删除测试绕过问题。
+  目前判为该上游组合的集成阻塞，具体上游修复尚未完成。
+- 每 6 小时的检查已配置；有同主版本正式更新时，先构建并测试候选，成功后才提交版本锁并发布。
+  当前组合仍会被上述门禁拦下，旧 experimental 镜像也不能视为可用版本。
+  真正的上游版本变化、自动提交及后续成功发布路径仍需在兼容版本到来时验证。
