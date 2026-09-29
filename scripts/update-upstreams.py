@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve stable GitHub releases to immutable commits; never execute release text."""
+"""Track latest stable releases; snapshot exact inputs for reproducible RC builds."""
 import argparse
 import copy
 import json
@@ -71,7 +71,7 @@ def image_tag(lock):
     if type(revision) is not int or revision < 1:
         raise ValueError('packaging_revision must be a positive integer')
     agy = validate_agy(lock)
-    return 'v' + '-'.join(versions) + f'-agy{agy["version"]}-r{revision}'
+    return 'v' + '-'.join(versions) + f'-agy{agy["version"]}-rc.{revision}'
 
 
 def validate_agy(lock):

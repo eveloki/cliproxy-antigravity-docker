@@ -1,9 +1,9 @@
-name: Update upstream releases and publish (experimental)
+name: Track stable upstream releases and publish RC
 on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17,47 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/update-upstreams.py --update
-      - name: Validate candidate pins and distribution scripts
+      - name: Validate candidate snapshot and distribution scripts
         if: steps.upstream.outputs.changed == 'true'
         run: |
           python3 -m unittest discover -s tests -v
@@ -50,7 +50,7 @@ jobs:
       - name: Check CPA/plugin integration without Google credentials
         if: steps.upstream.outputs.changed == 'true'
         run: bash tests/image-smoke.sh cliproxy-upstream-candidate:test
-      - name: Commit tested versions (fast-forward only)
+      - name: Record tested upstream snapshot (fast-forward only)
         if: steps.upstream.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,14 +78,9 @@ jobs:
         run: |
           sha=$(git rev-parse HEAD)
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          publish=true
-          # Retry missing version publication OR an interrupted latest promotion.
+          # Retry missing RC publication or either interrupted alias promotion.
           image="ghcr.io/${REPOSITORY,,}"
-          version_digest=$(python3 scripts/image-digest.py "$image:$VERSION")
-          latest_digest=$(python3 scripts/image-digest.py "$image:latest")
-          if [[ -n "$version_digest" && "$latest_digest" == "$version_digest" ]]; then
-            publish=false
-          fi
+          publish=$(python3 scripts/image-digest.py --publication-needed "$image" "$VERSION")
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           echo "Upstream changed=$CHANGED; publish=$publish; source=$sha" >> "$GITHUB_STEP_SUMMARY"
   publish:

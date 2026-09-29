@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish a fixed version and latest (still NOT READY)
+        description: Publish a versioned RC, rc and latest (still NOT READY)
         type: boolean
         default: false
   workflow_call:
@@ -28,7 +28,7 @@ jobs:
         with:
           ref: ${{ inputs.checkout_ref || github.sha }}
           persist-credentials: false
-      - name: Shell, Python and version-lock checks
+      - name: Shell, Python and source-snapshot checks
         run: |
           for script in scripts/*.sh tests/*.sh; do bash -n "$script"; done
           python3 -m compileall -q scripts tests
@@ -74,6 +74,7 @@ jobs:
             org.opencontainers.image.revision=${{ steps.image.outputs.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             io.cliproxy.distribution.status=NOT_READY_PENDING_TESTS
+            io.cliproxy.distribution.channel=rc
             io.cliproxy.upstream.versions=${{ steps.image.outputs.version_suffix }}
       - name: Build candidate (including upstream unit and ABI tests)
         uses: docker/build-push-action@v6
@@ -98,7 +99,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Preserve an existing fixed version
+      - name: Preserve an existing versioned RC
         id: version
         if: steps.image.outputs.publish == 'true'
         env:
@@ -124,7 +125,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=cliproxy-amd64
           provenance: true
           sbom: true
-      - name: Point latest at the fixed version and verify both digests
+      - name: Promote rc and latest and verify all three digests
         if: steps.image.outputs.publish == 'true'
         env:
           IMAGE: ${{ steps.image.outputs.name }}
@@ -133,15 +134,18 @@ jobs:
           SOURCE_SHA: ${{ steps.image.outputs.sha }}
         run: |
           current=$(git ls-remote origin refs/heads/main | cut -f1)
-          [[ "$current" == "$SOURCE_SHA" ]] || { echo 'Main changed; refusing to move latest.'; exit 1; }
+          [[ "$current" == "$SOURCE_SHA" ]] || { echo 'Main changed; refusing to move RC aliases.'; exit 1; }
           [[ -n "$DIGEST" && "$(python3 scripts/image-digest.py "$IMAGE:$VERSION")" == "$DIGEST" ]]
+          docker buildx imagetools create --prefer-index=false --tag "$IMAGE:rc" "$IMAGE@$DIGEST"
           docker buildx imagetools create --prefer-index=false --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
+          [[ "$(python3 scripts/image-digest.py "$IMAGE:$VERSION")" == "$DIGEST" ]]
+          [[ "$(python3 scripts/image-digest.py "$IMAGE:rc")" == "$DIGEST" ]]
           [[ "$(python3 scripts/image-digest.py "$IMAGE:latest")" == "$DIGEST" ]]
           {
-            echo '### Version published — NOT READY / PENDING TESTS'
-            echo "- Fixed version: \`$IMAGE:$VERSION\`"
-            echo "- Moving alias: \`$IMAGE:latest\`"
-            echo "- Digest (both tags): \`$IMAGE@$DIGEST\`"
+            echo '### RC published — NOT READY / PENDING TESTS'
+            echo "- Versioned RC: \`$IMAGE:$VERSION\`"
+            echo "- Moving aliases: \`$IMAGE:rc\`, \`$IMAGE:latest\`"
+            echo "- Digest (all three tags): \`$IMAGE@$DIGEST\`"
             echo "- Workflow checkout: \`$SOURCE_SHA\` (an existing version retains its original source label)"
             echo '- Real Google OAuth and tool-call acceptance tests remain pending.'
           } >> "$GITHUB_STEP_SUMMARY"

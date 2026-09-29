@@ -22,12 +22,12 @@ Compose 服务中。维护 Docker/启动脚本、配置，以及一个显式的
 ## 包含什么
 
 - Debian 多阶段构建；CPA 开启 CGO，插件使用 `-buildmode=c-shared`。
-- 固定上游提交，不随 `main` 自动漂移；构建时运行插件单测和上游 ABI mock 检查。
+- 自动跟踪 CPA/插件最新正式 Release，记录每次构建的准确提交；构建时运行插件单测和上游 ABI mock 检查。
 - 构建时下载官方 agy 1.2.12，校验固定 SHA256 后内置；镜像不包含账号凭证。
 - UID/GID 10001 非 root 运行；持久化整个用户目录与 CPA 配置。
 - 自动生成随机客户端 API key；默认只将 API 暴露到宿主机 `127.0.0.1`。
 - 显式登录、诊断、真实请求 smoke 脚本；本地 healthcheck 不调用 Google。
-- GitHub Actions 构建与实验 GHCR 发布，每 6 小时检查上游正式 Release；固定组合版本，`latest` 跟随最近成功发布。
+- GitHub Actions 每 30 分钟检查上游正式 Release；门禁通过后自动发布 RC 镜像，`rc` 和 `latest` 跟随最近成功发布。
 
 首版仅提供 `linux/amd64` 构建目标。ARM64、Windows/macOS Docker Desktop
 均未验证；不要把上游的跨平台支持等同于本发行版已经验证。
@@ -161,8 +161,9 @@ CLI 位于镜像内 `/opt/agy/agy`，由 root 拥有，运行用户不能改写�
 `AGY_AUTO_INSTALL` 和 `AGY_INSTALLER_SHA256` 已移除，不再参与启动。
 自动更新只追踪 CPA/插件；CLI 版本与哈希需显式修改，不会自动升级。
 
-CPA/插件版本记录在 `upstream-versions.json`，自动更新会同步 Dockerfile 的版本和完整 commit SHA。
-手动改动时必须保持两者一致，并重新完成验收。
+CPA/插件不固定在某个发行版：updater 每次查询最新正式 Release，检测到更新后自动构建、测试和发布 RC，无须人工批准升版。
+`upstream-versions.json` 是已通过候选测试的构建输入快照，自动同步 Dockerfile 的版本和完整 commit SHA，
+用于复现、审计与回滚，不是禁止升级的配置。单次构建仍使用准确 SHA，避免测试与发布期间源码漂移。
 Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固定这些依赖。
 不要以“用了同一个 Go 编译器”为由假定兼容；插件使用 C ABI，其协议兼容性仍需验证。
 
@@ -170,15 +171,15 @@ Go/基础镜像目前锁到版本系列，未锁 digest。正式版还需要固�
 
 项目仓库：[eveloki/cliproxy-antigravity-docker](https://github.com/eveloki/cliproxy-antigravity-docker)。
 历史实验镜像：`ghcr.io/eveloki/cliproxy-antigravity-docker:experimental`（保留，不再更新）。
-新发布采用 `v<CPA版本>-<插件版本>`，例如 `v8.0.3-0.1.3`，并更新 `latest`。
-**当前三组件固定版本已构建并发布：[Actions 36388336156](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36388336156) 全部成功。**
+新发布采用 `v<CPA版本>-<插件版本>-agy<CLI版本>-rc.<打包修订>`，并更新滚动标签 `rc` 和兼容别名 `latest`。
+历史版本的发布记录：[Actions 36388336156](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36388336156)。
 所有镜像都保留 **NOT READY — PENDING TESTS** 状态；发布成功不等于真实账号验收通过。
 
 在 `.env` 中设置下面这一行，然后拉取镜像：
 
 ```dotenv
-IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:v8.0.3-0.1.3-agy1.2.12-r1
-# 若希望手动 pull 时跟随更新，可改用 :latest
+IMAGE=ghcr.io/eveloki/cliproxy-antigravity-docker:rc
+# pull 时跟随最新通过门禁的 RC；需要回滚时使用带版本的 RC 标签或 digest
 ```
 
 ```bash
@@ -192,29 +193,30 @@ docker compose up -d --no-build
 
 | 标签 | 含义 | 是否移动 |
 | --- | --- | --- |
-| `v8.0.3-0.1.3-agy1.2.12-r1` | CPA 8.0.3 + 插件 0.1.3 + CLI 1.2.12 | 发布流程不覆盖 |
-| `v8.0.3-0.1.3-agy1.2.12-r2` | 相同三组件版本的第 2 次打包修订 | 发布流程不覆盖 |
-| `latest` | 最近成功发布的组合版本，与其 digest 一致 | 新版本通过检查后移动 |
+| `v8.0.4-0.1.3-agy1.2.12-rc.1`（示例） | CPA 8.0.4 + 插件 0.1.3 + CLI 1.2.12 的第一个 RC | 发布流程不覆盖 |
+| `v8.0.4-0.1.3-agy1.2.12-rc.2`（示例） | 相同三组件版本的第 2 次打包修订 | 发布流程不覆盖 |
+| `rc` | 最近成功发布的 RC，与版本标签 digest 一致 | 新版本通过检查后移动 |
+| `latest` | `rc` 的兼容别名，不代表稳定版 | 与 `rc` 一起更新 |
 | `sha-<完整发行层提交>` | 首次发布该版本所用的源码提交 | 随固定版本一并发布 |
 | `experimental` 及已有 `experimental-*` | 历史实验镜像 | 保留，不再更新 |
+| 已有 `*-r1` 等旧版标签 | RC 策略启用前的历史镜像 | 保留，不覆盖 |
 
 `latest` 不代表项目已就绪；镜像标签和文档仍标记 **NOT READY — PENDING TESTS**。
-`v8.0.3-0.1.3-agy1.2.12-r1` 是三个上游版本及打包修订的组合标识，不按单个 SemVer 的预发布规则排序。
+带版本的 RC 标签是三个上游版本及打包修订的组合标识，不按单个 SemVer 的预发布规则排序。
 
 版本标签本身不是注册表强制不可变：本仓库通过串行发布和发布前检查保证不覆盖，
-若标签已存在则保留其 digest，仅修复 `latest` 指向。鉴权或网络查询失败会终止发布，
+若标签已存在则保留其 digest，仅修复 `rc` / `latest` 指向。鉴权或网络查询失败会终止发布，
 不会当成“标签不存在”。有权限的人员仍可在流程外改动标签；严格锁定请使用 `image@sha256:...`。
 
 同一上游组合需要修改 Dockerfile、启动脚本或基础镜像时，将 `upstream-versions.json`
-中的 `packaging_revision` 递增到 2、3……，生成 `-r2`、`-r3` 标签。
-任何上游版本更新时自动重置为 1，采用新组合的 `-r1` 标签。
+中的 `packaging_revision` 递增到 2、3……，生成 `-rc.2`、`-rc.3` 标签。
+任何上游版本更新时自动重置为 1，采用新组合的 `-rc.1` 标签；不需要人工修改版本。
 若新版上游不能应用兼容补丁或路由测试失败，自动更新停止，必须先审阅适配或移除补丁。
 仅修改文档不产生新的打包版本；重复执行不会重建并覆盖已经发布的版本标签。
 
 ### 自动跟踪上游
 
-`Update upstream releases and publish (experimental)` 每 6 小时运行一次：
-UTC 00:17 / 06:17 / 12:17 / 18:17，即北京时间 08:17 / 14:17 / 20:17 / 02:17。
+`Track stable upstream releases and publish RC` 每 30 分钟运行一次（每小时的 :17 和 :47）。
 GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
 
 1. 查询 CPA 与插件的最新正式 GitHub Release，解析标签到完整 commit SHA。
@@ -225,10 +227,10 @@ GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
    其他人同时修改 main 时失败退出，不覆盖他人提交。
 5. 显式调用可复用发布工作流，对该确切提交重新检查后发布 GHCR。
    不依赖机器人 push 触发另一个工作流，因此只需 `GITHUB_TOKEN`，无须 PAT。
-6. 固定版本已存在且 `latest` 与其 digest 一致时跳过。缺失版本或 latest 更新中断时，下次检查重试；
-   已存在的固定版本不会覆盖，latest 从其现有 digest 创建，并验证二者一致。
+6. 带版本的 RC 已存在且 `rc`、`latest` 与其 digest 均一致时跳过。缺失版本或任意别名更新中断时，下次检查重试；
+   已存在的版本不会覆盖，两个别名从其现有 digest 创建，并从注册表重新读取验证三个标签一致。
 
-任何构建/测试失败均不会发布候选镜像或移动 `latest`。已有镜像保留；这不表示其功能已验证。
+任何构建/测试失败均不会发布候选镜像或移动 `rc` / `latest`。已有镜像保留；这不表示其功能已验证。
 发布任务串行执行，并拒绝覆盖已被新 main 提交取代的版本。
 这套自动化只升级 CPA 和插件；CLI 固定为锁定版本，不下载 Google 账号凭证。
 
@@ -236,8 +238,8 @@ GitHub 调度可能延迟，也可在 Actions 手动 Run workflow。
 
 - main push 自动检查最新上游、构建并发布缺失版本；PR 只检查并构建。
 - Actions → **Experimental container (NOT READY)** → Run workflow → 勾选 `publish` 可发布当前 main。
-  Git tag push 不再单独触发发布，镜像版本统一取自版本锁，避免产生任意标签。
-- 上游检测流程需要 `contents: write` 更新版本锁；发布任务需要 `packages: write`。
+  Git tag push 不再单独触发发布，镜像版本统一取自构建输入快照，避免产生任意标签。
+- 上游检测流程需要 `contents: write` 记录通过测试的上游快照；发布任务需要 `packages: write`。
   若以后启用分支保护或组织限制，需要允许该机器人更新，或改用 PR 流程；不会绕过规则。
 - 公共仓库并不自动保证 GHCR 包公开；包可见性应设为 Public，才能匿名拉取。
 - 公共仓库长期无活动时，GitHub 可能暂停定时工作流；在 Actions 中重新启用即可。

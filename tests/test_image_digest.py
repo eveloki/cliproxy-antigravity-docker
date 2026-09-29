@@ -32,3 +32,23 @@ class RegistryTests(unittest.TestCase):
         for value in ['{}', 'not json', '{"digest":"bad"}']:
             with self.subTest(value=value), self.assertRaises(ValueError):
                 self.inspect(stdout=value)
+
+    def test_complete_rc_publication_is_idempotent(self):
+        self.assertFalse(module.publication_needed('image', 'version', lambda ref: 'sha256:' + 'a' * 64))
+
+    def test_missing_version_or_interrupted_alias_promotion_is_retried(self):
+        digest = 'sha256:' + 'a' * 64
+        for tag in ['version', 'rc', 'latest']:
+            for stale in ['', 'sha256:' + 'b' * 64]:
+                with self.subTest(tag=tag, stale=stale):
+                    state = dict.fromkeys(['image:version', 'image:rc', 'image:latest'], digest)
+                    state['image:' + tag] = stale
+                    self.assertTrue(module.publication_needed('image', 'version', state.__getitem__))
+
+    def test_missing_version_does_not_hide_alias_lookup_failure(self):
+        def inspect(reference):
+            if reference == 'image:version':
+                return ''
+            raise RuntimeError('registry unavailable')
+        with self.assertRaisesRegex(RuntimeError, 'registry unavailable'):
+            module.publication_needed('image', 'version', inspect)
