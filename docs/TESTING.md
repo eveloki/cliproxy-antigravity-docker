@@ -1,6 +1,6 @@
 # 测试状态：正式版 / Stable
 
-## RC 卷迁移与兼容性复查（2026-10-01，r3 候选）
+## RC 卷迁移与兼容性复查（2026-10-01，r3 已发布）
 
 生产侧报告正确指出：先前非 root smoke 使用新容器，没有挂载 RC 创建的旧命名卷。
 旧卷缺少 `plugins/`，使 `/opt/cliproxy/plugins` 成为悬空目录链接，`Path.mkdir` 报 EEXIST。
@@ -16,7 +16,17 @@
   插件播种、模型发现、模拟普通/SSE 请求及 CLI HOME 持久化。
 - 同时保留原有非 root 新部署、上游五挂载测试，增加只读根文件系统下原生帮助命令比对。
 
-容器测试结果待本次 Actions 确认。全部使用合成状态，不读取生产卷或真实 Google 凭据；
+[Actions 36821300972](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36821300972)
+全部成功，源码提交 `b113d7e7628c961a73fef0b2e670648fc610e1d9`。
+26 项单测、非 root 新部署、上游五挂载、真实 RC 旧卷升级/重建/回滚三组容器测试通过。
+管理接口版本和提交与镜像内来源记录一致，构建时间为 `2026-10-01T05:25:34Z`：
+本次复用 r2 的 CPA 二进制编译缓存，保留其实际编译时间。
+
+正式版 `v8.0.8-0.1.3-agy1.2.12-r3`、`stable`、`latest` 已发布并核对为同一 digest：
+`sha256:d33cfce40ba2f51f4551fe00a5e213da304766ec5f05d775b8b34ed345f49347`。
+更新仓库 Compose 后，RC 旧卷升级无需生产侧报告中临时提出的手动建目录/改配置步骤。
+
+全部使用合成状态，不读取生产卷或真实 Google 凭据；
 原生 provider 的在线认证、任意第三方插件、远程配置后端和 ARM64 不在本次验收范围。
 
 ## Deployment compatibility (2026-10-01)
