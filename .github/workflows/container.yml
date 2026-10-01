@@ -87,7 +87,9 @@ jobs:
           cache-from: type=gha,scope=cliproxy-amd64
           cache-to: type=gha,mode=max,scope=cliproxy-amd64
       - name: Offline container integration smoke
-        run: bash tests/image-smoke.sh cliproxy-candidate:test
+        run: |
+          bash tests/image-smoke.sh cliproxy-candidate:test
+          bash tests/compat-smoke.sh cliproxy-candidate:test
       - name: Refuse to publish a superseded main revision
         if: steps.image.outputs.publish == 'true'
         run: |
@@ -147,7 +149,9 @@ jobs:
             echo
             echo 'Default model: gemini-3.8-flash (API: agy/gemini-3.8-flash).'
             echo 'The owner confirmed live model availability on 2026-10-01.'
-            echo 'This build passed the CLI startup and offline JSON/SSE integration checks.'
+            echo 'This build passed CLI startup, JSON/SSE and upstream-layout compatibility checks.'
+            echo 'Default root layout supports existing /CLIProxyAPI bind mounts; repository Compose retains non-root named volumes.'
+            echo 'English: README.md; 简体中文: README_CN.md.'
             echo 'CI does not use Google credentials. See docs/TESTING.md for validation scope.'
             echo
             echo "Source and instructions: https://github.com/$GH_REPO/tree/$SOURCE_SHA"

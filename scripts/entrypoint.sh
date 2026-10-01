@@ -1,26 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
-umask 077
-echo 'CLIProxyAPI Antigravity Docker — stable release.' >&2
-case "${1:-serve}" in
-  serve|login|doctor|init)
-    python3 /opt/cliproxy/scripts/init-config.py
+case "${1:-./CLIProxyAPI}" in
+  serve|./CLIProxyAPI|CLIProxyAPI|/CLIProxyAPI/CLIProxyAPI|/opt/cliproxy/CLIProxyAPI)
+    if [[ $# -gt 0 ]]; then shift; fi
     ;;
-esac
-case "${1:-serve}" in
-  serve)
-    /opt/cliproxy/scripts/bootstrap-agy.sh
-    # No authentication gate here: first-login recovery must remain possible.
-    exec /opt/cliproxy/CLIProxyAPI -config /config/config.yaml
-    ;;
+  -*) ;;
   login)
-    /opt/cliproxy/scripts/bootstrap-agy.sh
-    exec agy
+    shift
+    exec agy "$@"
     ;;
   doctor)
-    /opt/cliproxy/scripts/bootstrap-agy.sh
-    exec /opt/cliproxy/scripts/doctor.sh
+    shift
+    exec /opt/cliproxy/scripts/doctor.sh "$@"
     ;;
-  init) exit 0 ;;
+  init)
+    exec python3 /opt/cliproxy/scripts/init-config.py
+    ;;
   *) exec "$@" ;;
 esac
+config_path=$(python3 /opt/cliproxy/scripts/runtime_config.py path "$@")
+# A missing bind-mounted file can become a directory. Never overwrite it.
+if [[ -d "$config_path" ]]; then
+  echo "Config path is a directory; create the host config file before starting: $config_path" >&2
+  exit 1
+fi
+if [[ ! -f "$config_path" ]]; then
+  python3 /opt/cliproxy/scripts/init-config.py "$config_path"
+fi
+python3 /opt/cliproxy/scripts/prepare-plugins.py "$config_path"
+python3 /opt/cliproxy/scripts/runtime_config.py record "$config_path"
+exec /CLIProxyAPI/CLIProxyAPI -config "$config_path" "$@"

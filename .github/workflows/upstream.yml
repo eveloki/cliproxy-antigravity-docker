@@ -49,7 +49,9 @@ jobs:
           cache-to: type=gha,mode=max,scope=cliproxy-amd64
       - name: Check CPA/plugin integration without Google credentials
         if: steps.upstream.outputs.changed == 'true'
-        run: bash tests/image-smoke.sh cliproxy-upstream-candidate:test
+        run: |
+          bash tests/image-smoke.sh cliproxy-upstream-candidate:test
+          bash tests/compat-smoke.sh cliproxy-upstream-candidate:test
       - name: Record tested upstream snapshot (fast-forward only)
         if: steps.upstream.outputs.changed == 'true'
         env:

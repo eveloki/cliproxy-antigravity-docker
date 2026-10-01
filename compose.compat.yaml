@@ -1,0 +1,15 @@
+# For an existing CPA deployment. Keep your existing config.yaml and directories.
+services:
+  cli-proxy-api:
+    image: ${IMAGE:-ghcr.io/eveloki/cliproxy-antigravity-docker:latest}
+    pull_policy: always
+    container_name: cli-proxy-api
+    ports:
+      - "127.0.0.1:8317:8317"
+    volumes:
+      - ./config.yaml:/CLIProxyAPI/config.yaml
+      - ./auths:/root/.cli-proxy-api
+      - ./logs:/CLIProxyAPI/logs
+      - ./plugins:/CLIProxyAPI/plugins
+      - ./data:/CLIProxyAPI/data
+    restart: unless-stopped

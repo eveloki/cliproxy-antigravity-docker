@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import urllib.request
-import yaml
+from runtime_config import load, client_key, endpoint
 
 TEST_MODEL = Path(__file__).with_name('test-model.txt').read_text().strip()
 
@@ -18,19 +18,20 @@ def main():
     args = parser.parse_args()
     if args.tools and args.stream:
         parser.error('Run --tools and --stream separately; streaming tool calls remain a manual gate.')
-    config = yaml.safe_load(Path('/config/config.yaml').read_text())
-    key = config['access']['api-keys'][0]
+    config = load()
+    key = client_key(config)
+    base_url = endpoint(config)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def request(payload):
-        req = urllib.request.Request('http://127.0.0.1:8317/v1/chat/completions',
+        req = urllib.request.Request(base_url + '/v1/chat/completions',
             data=json.dumps(payload).encode(), headers={
                 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
         return opener.open(req, timeout=300)
 
     # Prefix selects the CLI plugin model, never CPA's native Antigravity provider.
     api_model = 'agy/' + args.model
-    req = urllib.request.Request('http://127.0.0.1:8317/v1/models',
+    req = urllib.request.Request(base_url + '/v1/models',
         headers={'Authorization': 'Bearer ' + key})
     with opener.open(req, timeout=30) as response:
         models = json.load(response)['data']

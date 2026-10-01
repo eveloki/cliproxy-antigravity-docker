@@ -1,5 +1,16 @@
 # 测试状态：正式版 / Stable
 
+## r3 deployment compatibility (2026-10-01)
+
+Candidate `v8.0.7-0.1.3-agy1.2.12-r3` aligns the default root image with the upstream
+`/CLIProxyAPI` working directory and five bind mounts. The repository Compose explicitly
+retains the existing non-root HOME and named volumes. English/Chinese READMEs document both modes.
+
+Local checks: 23 Python tests pass. New CI coverage exercises legacy read-only config,
+root user/workdir, native synthetic Codex credential enumeration, plugin seeding, writable plugin/data
+mounts, file logs, isolated agy HOME and recreation persistence. The existing non-root JSON/SSE
+integration remains required. No Google credentials are used. Container results are recorded after CI.
+
 ## 2026-10-01 正式发布验收
 
 维护者 eveloki 在实机环境确认 `gemini-3.8-flash` 可用，并明确要求升级为正式版。

@@ -5,7 +5,7 @@ model=$(cat "$(dirname "$0")/../scripts/test-model.txt")
 # Exercise the real bundled executable, as the runtime user, without network or credentials.
 expected=$(python3 -c 'import json; print(json.load(open("upstream-versions.json"))["agy"]["version"])')
 actual=$(docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true \
-  --entrypoint /usr/bin/timeout "$image" 30 /usr/local/bin/agy --version)
+  --user 10001:10001 -e HOME=/home/cliproxy -e AGY_HOME=/home/cliproxy --entrypoint /usr/bin/timeout "$image" 30 /usr/local/bin/agy --version)
 [[ "$actual" == "$expected" ]] || { echo "Bundled CLI version mismatch: $actual != $expected" >&2; exit 1; }
 echo "PASS: real bundled agy $actual starts without network as the non-root runtime user."
 mock=$(mktemp)
@@ -17,39 +17,12 @@ cleanup() {
   rm -f "$mock"
 }
 trap cleanup EXIT
-cat > "$mock" <<'MOCK'
-#!/bin/sh
-if [ "${1:-}" = models ]; then
-  printf '%s\tGemini 3.8 Flash\n' "$CLIPROXY_TEST_MODEL"
-elif [ "${1:-}" = --version ]; then
-  printf 'mock-agy (NO GOOGLE AUTH)\n'
-else
-  selected_model=
-  format=
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --model) shift; selected_model=${1:-} ;;
-      --output-format) shift; format=${1:-} ;;
-    esac
-    [ "$#" -gt 0 ] && shift
-  done
-  if [ "$selected_model" != "$CLIPROXY_TEST_MODEL" ]; then
-    echo 'Pinned model missing or changed; refusing mock fallback.' >&2
-    exit 2
-  fi
-  cat >/dev/null
-  printf '%s:%s\n' "$format" "$selected_model" >> "$HOME/mock-agy-invocations"
-  if [ "$format" = stream-json ]; then
-    printf '%s\n' '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"mock response"}}'
-    printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"mock response","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}'
-  else
-    printf '%s\n' '{"status":"SUCCESS","response":"mock response","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}'
-  fi
-fi
-MOCK
+cp "$(dirname "$0")/mock-agy.sh" "$mock"
 chmod 755 "$mock"
 container=$(docker create --network none --cap-drop ALL --security-opt no-new-privileges:true \
-  -e CLIPROXY_TEST_MODEL="$model" "$image")
+  -e CLIPROXY_TEST_MODEL="$model" --user 10001:10001 \
+  -e HOME=/home/cliproxy -e AGY_HOME=/home/cliproxy -e CPA_CONFIG=/config/config.yaml \
+  --workdir /home/cliproxy/workspace "$image")
 docker cp "$mock" "$container:/opt/agy/agy"
 docker start "$container" >/dev/null
 ready=false

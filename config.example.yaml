@@ -12,7 +12,7 @@ access:
   api-keys:
     - "__GENERATED_CLIENT_KEY__"
 oauth:
-  auth-dir: "/home/cliproxy/.cli-proxy-api"
+  auth-dir: "/root/.cli-proxy-api"
 observability:
   logs:
     debug: false
@@ -20,12 +20,12 @@ observability:
     request-log: false
 plugins:
   enabled: true
-  dir: "/opt/cliproxy/plugins"
+  dir: "/CLIProxyAPI/plugins"
   configs:
     cliproxy-antigravity:
       enabled: true
       binary_path: "/usr/local/bin/agy"
-      workdir: "/home/cliproxy/workspace"
+      workdir: "/CLIProxyAPI/data/agy-workspace"
       print_timeout: "30m"
       dangerously_skip_permissions: false
       sandbox: false

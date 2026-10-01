@@ -5,7 +5,12 @@ services:
     build:
       context: .
     platform: linux/amd64
+    user: "10001:10001"
+    working_dir: /home/cliproxy/workspace
     environment:
+      HOME: /home/cliproxy
+      AGY_HOME: /home/cliproxy
+      CPA_CONFIG: /config/config.yaml
       TZ: Asia/Shanghai
       GEMINI_FORCE_FILE_STORAGE: "true"
       AGY_CLI_DISABLE_AUTO_UPDATE: "true"
