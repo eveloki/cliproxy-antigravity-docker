@@ -197,6 +197,14 @@ Google inference requests. See [validation records](docs/TESTING.md) for evidenc
 
 ## Sources and licenses
 
+This distribution packages three upstream projects:
+
+| Upstream | Role |
+| --- | --- |
+| [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) | API proxy server; follows stable releases. |
+| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI executor plugin; follows stable releases with the disclosed compatibility patch. |
+| [google-antigravity/antigravity-cli](https://github.com/google-antigravity/antigravity-cli) | Official Antigravity CLI; bundled at a pinned version with SHA256 verification. |
+
 See [upstream records](docs/UPSTREAM.md), `upstream-versions.json` and
 [third-party notices](THIRD_PARTY_NOTICES.md). Packaging code is MIT; Google's CLI and other dependencies
 retain their own terms. This project is not affiliated with Google or either upstream project.

@@ -177,5 +177,13 @@ CI 不读取 Google 凭据，也不请求真实 Google 推理。实际结果及�
 
 ## 来源与许可
 
+本发行镜像集成以下三个上游项目：
+
+| 上游项目 | 作用 |
+| --- | --- |
+| [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) | API 代理服务，自动跟踪正式版本。 |
+| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI 执行器插件，自动跟踪正式版本并应用已公开的兼容补丁。 |
+| [google-antigravity/antigravity-cli](https://github.com/google-antigravity/antigravity-cli) | Google 官方 Antigravity CLI，固定版本内置并校验 SHA256。 |
+
 见 [上游记录](docs/UPSTREAM.md)、`upstream-versions.json` 和 [第三方声明](THIRD_PARTY_NOTICES.md)。
 发行层代码为 MIT；Google CLI 和其他依赖保留各自条款。本项目与 Google、CPA 和插件作者无隶属关系。
