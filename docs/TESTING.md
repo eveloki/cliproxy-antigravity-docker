@@ -1,15 +1,23 @@
 # 测试状态：正式版 / Stable
 
-## r3 deployment compatibility (2026-10-01)
+## Deployment compatibility (2026-10-01)
 
-Candidate `v8.0.7-0.1.3-agy1.2.12-r3` aligns the default root image with the upstream
+Version `v8.0.8-0.1.3-agy1.2.12-r1` aligns the default root image with the upstream
 `/CLIProxyAPI` working directory and five bind mounts. The repository Compose explicitly
 retains the existing non-root HOME and named volumes. English/Chinese READMEs document both modes.
 
-Local checks: 23 Python tests pass. New CI coverage exercises legacy read-only config,
+23 Python tests pass locally and in CI. New CI coverage passes legacy read-only config,
 root user/workdir, native synthetic Codex credential enumeration, plugin seeding, writable plugin/data
 mounts, file logs, isolated agy HOME and recreation persistence. The existing non-root JSON/SSE
-integration remains required. No Google credentials are used. Container results are recorded after CI.
+integration also passes. No Google credentials are used. The update job in
+[Actions 36817926461](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36817926461)
+verified both deployment modes before committing the CPA 8.0.8 snapshot. The CLI remains pinned to 1.2.12.
+
+The publish job repeated the integration checks and published the non-prerelease
+[GitHub Release](https://github.com/eveloki/cliproxy-antigravity-docker/releases/tag/v8.0.8-0.1.3-agy1.2.12-r1).
+Source: `6128ecf623c7c087dcedf9b7dcd5d1b12e0f1cbd`.
+The fixed tag, `stable` and `latest` were checked to have the same digest:
+`sha256:c2a29a35b19bd4e3a854d87a0187ec1ef41eeeb6c19323580a493202b6cb1634`.
 
 ## 2026-10-01 正式发布验收
 

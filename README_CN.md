@@ -8,7 +8,7 @@
 - CPA 和插件每 30 分钟检查最新正式 Release，通过构建与测试后自动发布。
 - 官方 CLI 固定为 `1.2.12`，构建时校验 SHA256。
 - 默认测试模型：`gemini-3.8-flash`；插件 API 模型：`agy/gemini-3.8-flash`。
-- 当前打包修订：`v8.0.7-0.1.3-agy1.2.12-r3`；实际发布状态和后续版本见 [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases)。
+- 固定标签包含 CPA、插件、CLI 和打包修订版本；已发布版本见 [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases)。
 - 发布平台为 `linux/amd64`，ARM64 和 Docker Desktop 未单独验收。
 
 ## 替换现有 CPA 镜像
