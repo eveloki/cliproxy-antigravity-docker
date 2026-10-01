@@ -30,7 +30,7 @@ RUN chmod 755 /usr/local/bin/fetch-source && \
     fetch-source https://github.com/adeebahmad01/cliproxy-antigravity.git "$PLUGIN_COMMIT" /src/plugin
 WORKDIR /src/cpa
 RUN go mod download && go mod verify && \
-    go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT}" -o /out/CLIProxyAPI ./cmd/server/
+    go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /out/CLIProxyAPI ./cmd/server/
 WORKDIR /src/plugin
 COPY compat/ /compat/
 RUN git apply --check /compat/plugin-model-router.patch && \

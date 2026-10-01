@@ -171,6 +171,8 @@ name, credentials and config when upgrading. Never upload account credentials or
 ## Releases and verification
 
 Fixed tags use `v<CPA>-<plugin>-agy<CLI>-r<revision>` and are never overwritten by the workflow.
+The management panel's build time is the UTC compilation time of the bundled CPA binary.
+When Docker reuses that binary from its build cache, its original compilation time is retained.
 `stable` and `latest` point to the same successfully published digest. Old RC and experimental tags
 are retained. Use a fixed tag or digest to control upgrades; pulling a new image does not update an
 already running container until you recreate it.

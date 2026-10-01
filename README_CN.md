@@ -155,6 +155,7 @@ docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
 ## 发布与验证
 
 固定标签采用 `v<CPA>-<插件>-agy<CLI>-r<修订>`，发布流程不覆盖。
+管理面板的构建时间来自镜像内 CPA 二进制的 UTC 编译时间；Docker 复用编译缓存时保留原编译时间。
 `stable` 和 `latest` 指向同一成功发布的镜像 digest；旧 RC 和 experimental 标签保留。
 需要控制升级时使用固定标签或 digest；拉取镜像后仍需重建容器才会使用新版。
 

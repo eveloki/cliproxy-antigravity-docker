@@ -84,6 +84,7 @@ compose exec -T cli-proxy-api python3 /opt/cliproxy/scripts/smoke.py --stream
 compose exec -T cli-proxy-api agy --test-home
 compose exec -T cli-proxy-api python3 - <<'PY'
 import json, os, urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 assert os.getcwd() == '/CLIProxyAPI'
 assert os.environ['HOME'] == '/root'
@@ -96,7 +97,12 @@ assert Path('/CLIProxyAPI/logs/main.log').is_file()
 request = urllib.request.Request('http://127.0.0.1:8317/v0/management/auth-files',
     headers={'Authorization': 'Bearer compat-management'})
 with urllib.request.urlopen(request, timeout=10) as response:
+    build_date = response.headers.get('X-CPA-BUILD-DATE', '')
+    assert build_date.endswith('Z'), repr(build_date)
+    built_at = datetime.fromisoformat(build_date.replace('Z', '+00:00'))
+    assert datetime(2020, 1, 1, tzinfo=timezone.utc) < built_at <= datetime.now(timezone.utc), build_date
     files = json.load(response)['files']
+print('PASS: management API exposes a valid UTC CPA build date: ' + build_date)
 assert any(item.get('name') == 'compat-codex.json' and item.get('provider') == 'codex' for item in files), files
 PY
 compose down >/dev/null
