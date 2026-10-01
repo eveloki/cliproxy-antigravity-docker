@@ -18,6 +18,11 @@ case "${1:-./CLIProxyAPI}" in
     ;;
   *) exec "$@" ;;
 esac
+# Native information/discovery commands must run before initialization and before
+# adding -config: CPA recognizes the discover subcommand only at argv[1].
+case "${1:-}" in
+  discover|-h|--h|-help|--help) exec /CLIProxyAPI/CLIProxyAPI "$@" ;;
+esac
 config_path=$(python3 /opt/cliproxy/scripts/runtime_config.py path "$@")
 # A missing bind-mounted file can become a directory. Never overwrite it.
 if [[ -d "$config_path" ]]; then

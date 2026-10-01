@@ -52,6 +52,7 @@ jobs:
         run: |
           bash tests/image-smoke.sh cliproxy-upstream-candidate:test
           bash tests/compat-smoke.sh cliproxy-upstream-candidate:test
+          bash tests/upgrade-smoke.sh cliproxy-upstream-candidate:test
       - name: Record tested upstream snapshot (fast-forward only)
         if: steps.upstream.outputs.changed == 'true'
         env:

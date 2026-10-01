@@ -135,6 +135,12 @@ file together with the image**: it now explicitly selects UID/GID `10001:10001`,
 This prevents the new root image defaults from changing ownership or using a different login directory.
 Do not switch to `compose.compat.yaml` merely to upgrade an existing named-volume deployment.
 
+Use `v8.0.8-0.1.3-agy1.2.12-r3` or later when upgrading RC-era volumes. Those volumes may lack
+`/home/cliproxy/plugins`; startup now creates the target of the old `/opt/cliproxy/plugins` symlink
+as UID 10001. No host-side mkdir/chown or config edit is required. The earlier 8.0.8 r1/r2 images
+missed this migration case. CI now creates volumes with the actual 8.0.6 RC image, then tests
+upgrade, recreation and rollback with synthetic state, including unchanged file contents and ownership.
+
 ```bash
 cd /www/cliproxy-antigravity-docker
 git pull --ff-only
@@ -161,6 +167,8 @@ docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
 The repository template generates a private client key only if config is missing. Existing keys
 are not rotated. Helpers support both legacy flat fields and v8 sections, including custom HTTP ports;
 explicit `-config` / `--config` wins over `CPA_CONFIG`. Health probes use the runtime config path.
+Repeated native `-config` flags use the last value; parsing stops at `--` or a positional argument.
+`./CLIProxyAPI -help` and `./CLIProxyAPI discover ...` run directly without config initialization.
 For local HTTPS health probes, certificate verification is skipped; live smoke uses normal TLS verification.
 Native remote config backends, arbitrary custom entrypoints and every OAuth callback workflow are not
 part of the five-mount compatibility test; preserve the relevant upstream settings and port mappings.

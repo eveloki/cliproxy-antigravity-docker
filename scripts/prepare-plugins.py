@@ -16,17 +16,23 @@ def digest(path):
 
 
 def seed(source, directory):
+    # Old named volumes mask image-created directories. Follow the compatibility
+    # symlink before mkdir so its missing target is created inside the mounted HOME.
+    directory = directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / source.name
     marker = directory / ('.' + source.name + '.bundled-sha256')
     with (directory / '.bundled-plugin.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         expected = digest(source)
-        if target.exists() or target.is_symlink():
+        if target.is_symlink():
+            print('Preserving user-managed plugin symlink: ' + str(target), file=sys.stderr)
+            return
+        if target.exists():
             actual = digest(target)
             if actual == expected:
                 return
-            if target.is_symlink() or not marker.is_file() or marker.read_text().strip() != actual:
+            if not marker.is_file() or marker.read_text().strip() != actual:
                 print('Preserving user-managed plugin: ' + str(target), file=sys.stderr)
                 return
         fd, temp = tempfile.mkstemp(prefix='.bundled-', dir=directory)
@@ -53,7 +59,7 @@ def prepare(path):
     directory = Path(str(plugins.get('dir') or 'plugins').strip()).expanduser()
     seed(BUNDLED, directory)
     if instance.get('workdir'):
-        Path(instance['workdir']).expanduser().mkdir(parents=True, exist_ok=True)
+        Path(instance['workdir']).expanduser().resolve().mkdir(parents=True, exist_ok=True)
 
 
 if __name__ == '__main__':

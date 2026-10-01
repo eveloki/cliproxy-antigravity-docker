@@ -90,6 +90,7 @@ jobs:
         run: |
           bash tests/image-smoke.sh cliproxy-candidate:test
           bash tests/compat-smoke.sh cliproxy-candidate:test
+          bash tests/upgrade-smoke.sh cliproxy-candidate:test
       - name: Refuse to publish a superseded main revision
         if: steps.image.outputs.publish == 'true'
         run: |

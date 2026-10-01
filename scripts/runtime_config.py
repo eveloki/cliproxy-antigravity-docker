@@ -7,15 +7,36 @@ import yaml
 
 STATE = Path(os.environ.get('CPA_RUNTIME_STATE', '/tmp/cliproxy-runtime.json'))
 
+# Match CPA's argvFlagConsumesValue: these native flags do not consume the next
+# argument. Unknown flags are left for CPA to validate (plugins may add flags).
+BOOL_FLAGS = frozenset('codex-login codex-device-login claude-login no-browser '
+    'antigravity-login kimi-login kimi-ai-login xai-login devin-login meta-login '
+    'discover discover-json home-disable-cluster-discovery tui standalone local-model h help'.split())
+
+
+def explicit_config(args):
+    selected = None
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ('--', '-') or not arg.startswith('-'):
+            break
+        name, equal, value = arg.lstrip('-').partition('=')
+        if not equal and name not in BOOL_FLAGS:
+            index += 1
+            if index == len(args):
+                raise ValueError('Missing value for -' + name)
+            value = args[index]
+        if name == 'config':
+            selected = Path(value).absolute() if value else Path.cwd() / 'config.yaml'
+        index += 1
+    return selected
+
 
 def config_path(args=(), use_state=True):
-    for index, arg in enumerate(args):
-        if arg in ('-config', '--config'):
-            if index + 1 == len(args):
-                raise ValueError('Missing value for -config')
-            return Path(args[index + 1]).absolute()
-        if arg.startswith(('-config=', '--config=')):
-            return Path(arg.split('=', 1)[1]).absolute()
+    selected = explicit_config(args)
+    if selected is not None:
+        return selected
     if use_state and STATE.is_file():
         return Path(json.loads(STATE.read_text())['config'])
     if os.environ.get('CPA_CONFIG'):

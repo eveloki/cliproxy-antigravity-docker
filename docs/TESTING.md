@@ -1,5 +1,24 @@
 # 测试状态：正式版 / Stable
 
+## RC 卷迁移与兼容性复查（2026-10-01，r3 候选）
+
+生产侧报告正确指出：先前非 root smoke 使用新容器，没有挂载 RC 创建的旧命名卷。
+旧卷缺少 `plugins/`，使 `/opt/cliproxy/plugins` 成为悬空目录链接，`Path.mkdir` 报 EEXIST。
+这属于发行层兼容缺陷，不能将此前 CI 通过解释为旧卷升级已通过。
+
+- 本地先复现失败，再验证修复：解析目录链接后创建目标，保留用户自管插件链接。
+- 26 项本地测试通过；同时修复重复 `-config` 的最后值/终止符解析，透传原生 help/discover。
+- 对照 CPA v8.0.8 Dockerfile 检查 Version、Commit、BuildDate 三项 ldflags；均已注入。
+  管理接口回归现在同时核对版本、提交和 UTC 日期，系统时区文件也与上游对齐。
+- `tests/upgrade-smoke.sh` 使用实际 `v8.0.6-0.1.3-agy1.2.12-rc.1` 镜像创建命名卷，
+  固定 digest `sha256:1d8432eb6bc1f202adc15c38f45fe075b01f04f3f82ba1880feb9c0b08611f39`。
+  不预建 plugins，使用仓库 Compose 升级、重建、回滚；检查旧文件哈希/权限/属主、
+  插件播种、模型发现、模拟普通/SSE 请求及 CLI HOME 持久化。
+- 同时保留原有非 root 新部署、上游五挂载测试，增加只读根文件系统下原生帮助命令比对。
+
+容器测试结果待本次 Actions 确认。全部使用合成状态，不读取生产卷或真实 Google 凭据；
+原生 provider 的在线认证、任意第三方插件、远程配置后端和 ARM64 不在本次验收范围。
+
 ## Deployment compatibility (2026-10-01)
 
 Version `v8.0.8-0.1.3-agy1.2.12-r1` aligns the default root image with the upstream

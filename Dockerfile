@@ -68,6 +68,8 @@ RUN chmod 755 /opt/cliproxy/scripts/*.sh && \
     ln -s /opt/cliproxy/scripts/agy.sh /usr/local/bin/agy && \
     ln -s /opt/cliproxy/CLIProxyAPI /CLIProxyAPI/CLIProxyAPI && \
     ln -s /home/cliproxy/plugins /opt/cliproxy/plugins && \
+    ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    printf '%s\n' Asia/Shanghai > /etc/timezone && \
     cp /opt/cliproxy/config.example.yaml /CLIProxyAPI/config.example.yaml && \
     cat /opt/agy/provenance.txt >> /opt/cliproxy/upstream-versions.txt
 ENV HOME=/root \

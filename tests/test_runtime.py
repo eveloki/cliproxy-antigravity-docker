@@ -50,6 +50,41 @@ class RuntimeTests(unittest.TestCase):
             plugins.seed(src, dest)
             self.assertEqual((dest / src.name).read_bytes(), b'user replacement')
 
+    def test_rc_volume_missing_symlink_target_is_created(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'cliproxy-antigravity.so'
+            source.write_bytes(b'bundled')
+            old_volume = root / 'old-home'
+            old_volume.mkdir()
+            alias = root / 'old-plugin-path'
+            alias.symlink_to(old_volume / 'plugins', target_is_directory=True)
+            plugins.seed(source, alias)
+            self.assertTrue(alias.is_symlink())
+            self.assertEqual((old_volume / 'plugins' / source.name).read_bytes(), b'bundled')
+            plugins.seed(source, alias)
+
+    def test_user_plugin_symlink_is_preserved_even_when_dangling(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, directory = root / 'cliproxy-antigravity.so', root / 'plugins'
+            source.write_bytes(b'bundled')
+            directory.mkdir()
+            target = directory / source.name
+            target.symlink_to(root / 'user-controlled.so')
+            plugins.seed(source, directory)
+            self.assertTrue(target.is_symlink())
+            self.assertFalse(target.exists())
+
+    def test_config_matches_native_last_flag_and_terminator(self):
+        with patch.dict(os.environ, {'CPA_CONFIG': '/env.yaml'}):
+            self.assertEqual(runtime.config_path(['-config', '/first.yaml', '--config=/last.yaml']), Path('/last.yaml'))
+            self.assertEqual(runtime.config_path(['-config=/first.yaml', '--', '-config=/ignored.yaml']), Path('/first.yaml'))
+            self.assertEqual(runtime.config_path(['--', '-config=/ignored.yaml'], use_state=False), Path('/env.yaml'))
+            self.assertEqual(runtime.config_path(['-password', '-config=/not-a-flag', '-config=/real.yaml']), Path('/real.yaml'))
+            self.assertEqual(runtime.config_path(['-local-model', '-config=/real.yaml']), Path('/real.yaml'))
+            self.assertEqual(runtime.config_path(['-config=']), Path.cwd() / 'config.yaml')
+
     def test_unknown_existing_plugin_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -6,6 +6,15 @@ project="cpa-compat-$RANDOM"
 model=$(cat "$(dirname "$0")/../scripts/test-model.txt")
 expected=$(python3 -c 'import json; print(json.load(open("upstream-versions.json"))["agy"]["version"])')
 [[ "$(docker run --rm --network none "$image" agy --version)" == "$expected" ]]
+# These native commands must work without a writable rootfs or config creation.
+for mode in help discover; do
+  args=(-help)
+  if [[ "$mode" == discover ]]; then args=(discover --help); fi
+  native=$(docker run --rm --network none --read-only --tmpfs /tmp --entrypoint /CLIProxyAPI/CLIProxyAPI "$image" "${args[@]}" 2>&1)
+  wrapped=$(docker run --rm --network none --read-only --tmpfs /tmp "$image" ./CLIProxyAPI "${args[@]}" 2>&1)
+  [[ "$native" == "$wrapped" ]]
+done
+echo 'PASS: native help and discover help match direct CPA execution on a read-only rootfs.'
 compose() { CLIPROXY_COMPAT_IMAGE="$image" CLIPROXY_TEST_MODEL="$model" docker compose -p "$project" -f "$root/compose.yaml" "$@"; }
 cleanup() {
   result=$?
@@ -97,12 +106,15 @@ assert Path('/CLIProxyAPI/logs/main.log').is_file()
 request = urllib.request.Request('http://127.0.0.1:8317/v0/management/auth-files',
     headers={'Authorization': 'Bearer compat-management'})
 with urllib.request.urlopen(request, timeout=10) as response:
+    versions = dict(line.split('=', 1) for line in Path('/opt/cliproxy/upstream-versions.txt').read_text().splitlines() if '=' in line)
+    assert response.headers.get('X-CPA-VERSION') == versions['CPA_VERSION']
+    assert response.headers.get('X-CPA-COMMIT') == versions['CPA_COMMIT']
     build_date = response.headers.get('X-CPA-BUILD-DATE', '')
     assert build_date.endswith('Z'), repr(build_date)
     built_at = datetime.fromisoformat(build_date.replace('Z', '+00:00'))
     assert datetime(2020, 1, 1, tzinfo=timezone.utc) < built_at <= datetime.now(timezone.utc), build_date
     files = json.load(response)['files']
-print('PASS: management API exposes a valid UTC CPA build date: ' + build_date)
+print('PASS: management API version/commit match bundled provenance; valid UTC CPA build date: ' + build_date)
 assert any(item.get('name') == 'compat-codex.json' and item.get('provider') == 'codex' for item in files), files
 PY
 compose down >/dev/null
@@ -111,11 +123,12 @@ python3 - "$root/compose.yaml" <<'PYCODE'
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
-path.write_text(path.read_text().replace('    pull_policy: always', '    command: ["./CLIProxyAPI", "-config", "/CLIProxyAPI/config.yaml"]\n    pull_policy: always'))
+path.write_text(path.read_text().replace('    pull_policy: always', '    command: ["./CLIProxyAPI", "-config", "/CLIProxyAPI/ignored.yaml", "--config=/CLIProxyAPI/config.yaml"]\n    pull_policy: always'))
 PYCODE
 start
 compose exec -T cli-proxy-api python3 - <<'PY'
 from pathlib import Path
+assert not Path('/CLIProxyAPI/ignored.yaml').exists()
 assert Path('/root/.cli-proxy-api/agy-home/.compat-cli-state').read_text() == 'persistent CLI state\n'
 assert Path('/CLIProxyAPI/data/persisted.db').read_text() == 'plugin data survives'
 assert Path('/CLIProxyAPI/plugins/writable.txt').is_file()

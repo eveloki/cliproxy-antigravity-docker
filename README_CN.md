@@ -120,6 +120,12 @@ CLI 本体位于 `/opt/agy/agy`，不被凭据或插件挂载遮住，关闭自�
 `CPA_CONFIG=/config/config.yaml` 和原工作目录，避免镜像的新 root 默认值改变文件属主或登录位置。
 已有命名卷部署不要为了升级而直接换成 `compose.compat.yaml`。
 
+RC 时代旧卷请升级到 `v8.0.8-0.1.3-agy1.2.12-r3` 或更高版本。旧卷可能没有
+`/home/cliproxy/plugins`；启动脚本现在以 UID 10001 自动创建旧 `/opt/cliproxy/plugins`
+符号链接的目标目录，无需在宿主机手动 mkdir/chown，也无需修改原配置。
+此前 8.0.8 r1/r2 漏测了这一迁移场景。CI 现在用实际 8.0.6 RC 镜像创建卷，再测试升级、
+重建和回滚，并检查合成配置、凭据、状态及数据文件的内容和属主保持不变。
+
 ```bash
 cd /www/cliproxy-antigravity-docker
 git pull --ff-only
@@ -145,6 +151,8 @@ docker compose exec cliproxy python3 /opt/cliproxy/scripts/smoke.py --tools
 
 仓库模板只在配置缺失时生成私有随机 key，不覆盖已有 key。辅助脚本同时识别旧平铺字段和 v8 分节，
 支持自定义 HTTP 端口；显式 `-config` / `--config` 优先于 `CPA_CONFIG`，健康检查跟随实际配置路径。
+重复指定原生 `-config` 时取最后一个值，遇到 `--` 或位置参数后停止解析。
+`./CLIProxyAPI -help` 与 `./CLIProxyAPI discover ...` 直接透传，不执行配置初始化。
 本地 HTTPS 健康检查跳过证书验证，真实 smoke 保留正常 TLS 校验。
 原生远程配置后端、自定义 entrypoint 及全部 OAuth 回调流程不在本次五挂载兼容测试范围内，
 请保留这些场景所需的上游配置和端口映射。
