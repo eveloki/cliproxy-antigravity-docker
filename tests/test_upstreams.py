@@ -43,13 +43,13 @@ class UpstreamTests(unittest.TestCase):
         self.assertEqual(result['packaging_revision'], 1)
         self.assertEqual(self.lock, before)
 
-    def test_rc_tag_and_packaging_revision(self):
+    def test_stable_tag_and_packaging_revision(self):
         self.lock['cpa']['version'] = 'v8.0.3'
         self.lock['plugin']['version'] = '0.1.3'
         self.lock['packaging_revision'] = 1
-        self.assertEqual(upstreams.image_tag(self.lock), 'v8.0.3-0.1.3-agy1.2.12-rc.1')
+        self.assertEqual(upstreams.image_tag(self.lock), 'v8.0.3-0.1.3-agy1.2.12-r1')
         self.lock['packaging_revision'] = 2
-        self.assertEqual(upstreams.image_tag(self.lock), 'v8.0.3-0.1.3-agy1.2.12-rc.2')
+        self.assertEqual(upstreams.image_tag(self.lock), 'v8.0.3-0.1.3-agy1.2.12-r2')
         for revision in [0, -1, True, '2']:
             self.lock['packaging_revision'] = revision
             with self.assertRaises(ValueError):

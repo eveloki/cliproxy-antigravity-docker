@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-echo 'Distribution: NOT READY — PENDING TESTS'
+echo 'Distribution: stable release'
 cat /opt/cliproxy/upstream-versions.txt
 agy --version
 echo 'Checking agy model discovery (timeout 45 seconds)...'

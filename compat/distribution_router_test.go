@@ -9,7 +9,7 @@ func TestDistributionModelRouterABI(t *testing.T) {
 	if !pluginRegistration().Capabilities.ModelRouter {
 		t.Fatal("model_router capability is not advertised")
 	}
-	for _, model := range []string{"agy/gemini-3.5-flash-lite", "agy/default", " agy/gemini-3.5-flash-lite "} {
+	for _, model := range []string{"agy/gemini-3.8-flash", "agy/default", " agy/gemini-3.8-flash "} {
 		for _, stream := range []bool{false, true} {
 			raw, _ := json.Marshal(map[string]any{"RequestedModel": model, "Stream": stream, "SourceFormat": "openai"})
 			payload, err := handleMethod("model.route", raw)
@@ -31,7 +31,7 @@ func TestDistributionModelRouterABI(t *testing.T) {
 }
 
 func TestDistributionRouterDoesNotCaptureNativeProviders(t *testing.T) {
-	for _, model := range []string{"", "agy/", "agy/  ", "gemini-3.5-flash-lite", "antigravity/gemini-3.5-flash-lite", "codex/model", "not-agy/model"} {
+	for _, model := range []string{"", "agy/", "agy/  ", "gemini-3.8-flash", "antigravity/gemini-3.8-flash", "codex/model", "not-agy/model"} {
 		raw, _ := json.Marshal(map[string]string{"RequestedModel": model})
 		payload, err := handleMethod("model.route", raw)
 		if err != nil { t.Fatal(err) }
@@ -47,7 +47,7 @@ func TestDistributionRouterDoesNotCaptureNativeProviders(t *testing.T) {
 }
 
 func TestDistributionStreamDoesNotDoubleFrame(t *testing.T) {
-	frame := makeSSEChunk("test", 1, "agy/gemini-3.5-flash-lite", map[string]any{"content": "mock response"}, nil, nil, "")
+	frame := makeSSEChunk("test", 1, "agy/gemini-3.8-flash", map[string]any{"content": "mock response"}, nil, nil, "")
 	data := distributionStreamPayload(frame)
 	if !json.Valid(data) { t.Fatalf("expected bare JSON, got %q", data) }
 	if string(distributionStreamPayload(data)) != string(data) { t.Fatal("raw JSON changed") }

@@ -1,4 +1,4 @@
-# NOT READY — PENDING REAL AUTH / RECREATION / TOOL-CALL TESTS.
+# Stable release. Live model availability confirmed by the owner; see docs/TESTING.md.
 # Matched to the pinned CLIProxyAPI v8 source layout.
 config-version: 8
 server:

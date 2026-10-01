@@ -20,7 +20,7 @@ trap cleanup EXIT
 cat > "$mock" <<'MOCK'
 #!/bin/sh
 if [ "${1:-}" = models ]; then
-  printf '%s\tGemini 3.5 Flash Lite\n' "$CLIPROXY_TEST_MODEL"
+  printf '%s\tGemini 3.8 Flash\n' "$CLIPROXY_TEST_MODEL"
 elif [ "${1:-}" = --version ]; then
   printf 'mock-agy (NO GOOGLE AUTH)\n'
 else

@@ -1,10 +1,10 @@
-name: Experimental container (NOT READY)
+name: Stable container release
 on:
   pull_request:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish a versioned RC, rc and latest (still NOT READY)
+        description: Publish a fixed stable version, GitHub Release, stable and latest
         type: boolean
         default: false
   workflow_call:
@@ -42,7 +42,7 @@ jobs:
       group: ghcr-experimental-publisher
       cancel-in-progress: false
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -73,8 +73,8 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ steps.image.outputs.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            io.cliproxy.distribution.status=NOT_READY_PENDING_TESTS
-            io.cliproxy.distribution.channel=rc
+            io.cliproxy.distribution.status=STABLE
+            io.cliproxy.distribution.channel=stable
             io.cliproxy.upstream.versions=${{ steps.image.outputs.version_suffix }}
       - name: Build candidate (including upstream unit and ABI tests)
         uses: docker/build-push-action@v6
@@ -99,7 +99,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Preserve an existing versioned RC
+      - name: Preserve an existing fixed release
         id: version
         if: steps.image.outputs.publish == 'true'
         env:
@@ -125,7 +125,39 @@ jobs:
           cache-to: type=gha,mode=max,scope=cliproxy-amd64
           provenance: true
           sbom: true
-      - name: Promote rc and latest and verify all three digests
+      - name: Publish GitHub stable release
+        if: steps.image.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ steps.image.outputs.image_tag }}
+          DIGEST: ${{ steps.publish.outputs.digest || steps.version.outputs.digest }}
+          SOURCE_SHA: ${{ steps.image.outputs.sha }}
+        run: |
+          current=$(git ls-remote origin refs/heads/main | cut -f1)
+          [[ "$current" == "$SOURCE_SHA" ]] || { echo 'Main changed; refusing to create a release.'; exit 1; }
+          [[ -n "$DIGEST" && "$(python3 scripts/image-digest.py "$IMAGE:$VERSION")" == "$DIGEST" ]]
+          notes=$(mktemp)
+          {
+            echo "Stable release: $VERSION"
+            echo
+            echo "Image: $IMAGE:$VERSION"
+            echo "Digest: $IMAGE@$DIGEST"
+            echo
+            echo 'Default model: gemini-3.8-flash (API: agy/gemini-3.8-flash).'
+            echo 'The owner confirmed live model availability on 2026-10-01.'
+            echo 'This build passed the CLI startup and offline JSON/SSE integration checks.'
+            echo 'CI does not use Google credentials. See docs/TESTING.md for validation scope.'
+            echo
+            echo "Source and instructions: https://github.com/$GH_REPO/tree/$SOURCE_SHA"
+          } > "$notes"
+          if ! gh release view "$VERSION" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release create "$VERSION" --repo "$GH_REPO" --target "$SOURCE_SHA" \
+              --title "$VERSION" --notes-file "$notes" --latest
+          fi
+          rm -f "$notes"
+      - name: Promote stable and latest and verify all three digests
         if: steps.image.outputs.publish == 'true'
         env:
           IMAGE: ${{ steps.image.outputs.name }}
@@ -134,18 +166,18 @@ jobs:
           SOURCE_SHA: ${{ steps.image.outputs.sha }}
         run: |
           current=$(git ls-remote origin refs/heads/main | cut -f1)
-          [[ "$current" == "$SOURCE_SHA" ]] || { echo 'Main changed; refusing to move RC aliases.'; exit 1; }
+          [[ "$current" == "$SOURCE_SHA" ]] || { echo 'Main changed; refusing to move stable aliases.'; exit 1; }
           [[ -n "$DIGEST" && "$(python3 scripts/image-digest.py "$IMAGE:$VERSION")" == "$DIGEST" ]]
-          docker buildx imagetools create --prefer-index=false --tag "$IMAGE:rc" "$IMAGE@$DIGEST"
+          docker buildx imagetools create --prefer-index=false --tag "$IMAGE:stable" "$IMAGE@$DIGEST"
           docker buildx imagetools create --prefer-index=false --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
           [[ "$(python3 scripts/image-digest.py "$IMAGE:$VERSION")" == "$DIGEST" ]]
-          [[ "$(python3 scripts/image-digest.py "$IMAGE:rc")" == "$DIGEST" ]]
+          [[ "$(python3 scripts/image-digest.py "$IMAGE:stable")" == "$DIGEST" ]]
           [[ "$(python3 scripts/image-digest.py "$IMAGE:latest")" == "$DIGEST" ]]
           {
-            echo '### RC published — NOT READY / PENDING TESTS'
-            echo "- Versioned RC: \`$IMAGE:$VERSION\`"
-            echo "- Moving aliases: \`$IMAGE:rc\`, \`$IMAGE:latest\`"
+            echo '### Stable release published'
+            echo "- Fixed release: \`$IMAGE:$VERSION\`"
+            echo "- Moving aliases: \`$IMAGE:stable\`, \`$IMAGE:latest\`"
             echo "- Digest (all three tags): \`$IMAGE@$DIGEST\`"
             echo "- Workflow checkout: \`$SOURCE_SHA\` (an existing version retains its original source label)"
-            echo '- Real Google OAuth and tool-call acceptance tests remain pending.'
+            echo '- Model: gemini-3.8-flash. Owner-reported live validation and remaining test scope: docs/TESTING.md.'
           } >> "$GITHUB_STEP_SUMMARY"

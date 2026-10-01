@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
-echo 'EXPERIMENTAL: NOT READY — PENDING TESTS.' >&2
+echo 'CLIProxyAPI Antigravity Docker — stable release.' >&2
 case "${1:-serve}" in
   serve|login|doctor|init)
     python3 /opt/cliproxy/scripts/init-config.py

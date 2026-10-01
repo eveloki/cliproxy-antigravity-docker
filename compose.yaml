@@ -1,7 +1,7 @@
 name: cliproxy-antigravity
 services:
   cliproxy:
-    image: ${IMAGE:-cliproxy-antigravity:experimental}
+    image: ${IMAGE:-ghcr.io/eveloki/cliproxy-antigravity-docker:latest}
     build:
       context: .
     platform: linux/amd64

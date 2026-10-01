@@ -1,4 +1,4 @@
-name: Track stable upstream releases and publish RC
+name: Track stable upstream releases and publish stable images
 on:
   push:
     branches: [main]
@@ -78,7 +78,7 @@ jobs:
         run: |
           sha=$(git rev-parse HEAD)
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          # Retry missing RC publication or either interrupted alias promotion.
+          # Retry missing stable publication or either interrupted alias promotion.
           image="ghcr.io/${REPOSITORY,,}"
           publish=$(python3 scripts/image-digest.py --publication-needed "$image" "$VERSION")
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
@@ -87,7 +87,7 @@ jobs:
     needs: update
     if: needs.update.outputs.publish == 'true'
     permissions:
-      contents: read
+      contents: write
       packages: write
     uses: ./.github/workflows/container.yml
     with:

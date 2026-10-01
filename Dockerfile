@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Personal experimental distribution. Fixed official CLI; no account is baked in.
+# Personal stable distribution. Fixed official CLI; no account is baked in.
 FROM debian:bookworm-slim AS agy-builder
 ARG AGY_VERSION=1.2.12
 ARG AGY_SHA256=26c7c4c661d6c9beda734fcf305031056a6ea46e697c4533e8151179724e2950
@@ -71,9 +71,10 @@ ENV HOME=/home/cliproxy \
     GEMINI_FORCE_FILE_STORAGE=true \
     AGY_CLI_DISABLE_AUTO_UPDATE=true \
     TZ=Asia/Shanghai
-LABEL org.opencontainers.image.title="CLIProxyAPI Antigravity Docker (experimental)" \
-      org.opencontainers.image.description="NOT READY — PENDING TESTS. Personal distribution with a pinned official agy binary." \
-      io.cliproxy.distribution.status="NOT_READY_PENDING_TESTS"
+LABEL org.opencontainers.image.title="CLIProxyAPI Antigravity Docker" \
+      org.opencontainers.image.description="Stable personal distribution with a pinned official agy binary." \
+      io.cliproxy.distribution.status="STABLE" \
+      io.cliproxy.distribution.channel="stable"
 USER 10001:10001
 WORKDIR /home/cliproxy/workspace
 EXPOSE 8317

@@ -25,10 +25,10 @@ def image_digest(reference, run=subprocess.run):
 
 def publication_needed(image, version, inspect=image_digest):
     # Read every tag even if one is missing: registry errors must fail closed.
-    version_digest, rc_digest, latest_digest = (
-        inspect(f'{image}:{tag}') for tag in (version, 'rc', 'latest')
+    version_digest, stable_digest, latest_digest = (
+        inspect(f'{image}:{tag}') for tag in (version, 'stable', 'latest')
     )
-    return not (version_digest and rc_digest == version_digest == latest_digest)
+    return not (version_digest and stable_digest == version_digest == latest_digest)
 
 
 if __name__ == '__main__':
