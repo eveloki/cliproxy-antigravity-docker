@@ -5,7 +5,7 @@
 维护者 eveloki 在实机环境确认 `gemini-3.8-flash` 可用，并明确要求升级为正式版。
 这是维护者提供的验收结论；本次维护没有读取 Google 凭据，也没有代跑真实账号推理。
 
-- 正式版候选：`v8.0.7-0.1.3-agy1.2.12-r2`（CPA 8.0.7 / 插件 0.1.3 / CLI 1.2.12）。
+- 已发布正式版：`v8.0.7-0.1.3-agy1.2.12-r2`（CPA 8.0.7 / 插件 0.1.3 / CLI 1.2.12）。
 - 默认测试模型和所有当前命令示例更新为 `gemini-3.8-flash`；API 使用 `agy/gemini-3.8-flash`。
 - README 纳入官方登录、重启发现模型、读取客户端 API key、doctor 和 `smoke.py --tools` 操作。
 - STATUS、启动提示、镜像标签和工作流转为 STABLE；发布固定版本、stable、latest 和 GitHub 正式 Release。
@@ -15,12 +15,21 @@
 | --- | --- |
 | gemini-3.8-flash 实际可用性 | 维护者于 2026-10-01 确认通过 |
 | 官方登录与调用操作 | README 已按维护者提供的流程整理 |
-| 本次发布构建与离线集成 | 以对应 Actions 运行结果为准 |
+| 本次发布构建与离线集成 | [Actions 36808623835](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/36808623835) 全部通过 |
 | 工具闭环的独立日志、流式工具调用、并发与异常恢复 | 本次未提供逐项结果，不据此宣称专项验收通过 |
 | ARM64 / Docker Desktop | 未单独验收，当前发布 linux/amd64 |
 
 发布状态依据维护者验收与发布决定更新。后续自动升级仍以 CI 为发布门槛，
 不把本次模型实测结论扩展成对所有账号、环境或未来上游版本的保证。
+
+## 本次正式发布证据
+
+- 源码提交：`37a6e63740375f0729efe188cbf64962c5f36760`。
+- 18 项 Python 单测、脚本/Compose 检查、完整构建、插件 Go 单测和 ABI 测试通过。
+- 真实 agy 1.2.12 在非 root、断网容器中启动成功；gemini-3.8-flash mock 普通响应、SSE、401 和路由边界检查通过。
+- [GitHub 正式 Release](https://github.com/eveloki/cliproxy-antigravity-docker/releases/tag/v8.0.7-0.1.3-agy1.2.12-r2) 已发布，非草稿、非预发布。
+- 固定标签 `v8.0.7-0.1.3-agy1.2.12-r2`、`stable`、`latest` 均已发布，工作流重新查询确认 digest 一致：
+  `sha256:80f6c2a34a263df54e17bbd07b6de4bcbe79963a78ee84b889e261d3e5e42f85`。
 
 ## 历史记录（以下保留当时状态）
 
