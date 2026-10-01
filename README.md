@@ -6,7 +6,14 @@ A stable CPA distribution with the official Antigravity CLI and a bundled CLI ex
 The default image layout matches `eceasy/cli-proxy-api`, so an existing local-file CPA deployment
 can keep its Compose file and replace the image name.
 
-- CPA and plugin follow the latest stable upstream releases, checked every 30 minutes.
+> [!WARNING]
+> **Do not install, update or reinstall `cliproxy-antigravity` through the management panel's plugin store,
+> even if the panel offers an update.** This image bundles a patched plugin required for CPA v8 routing
+> and SSE compatibility. A store binary can replace the active patched plugin and bring back
+> `503 auth_not_found`. Update this plugin **only by upgrading this project's Docker image**.
+> The warning applies to `cliproxy-antigravity`; see the explanation and recovery steps below.
+
+- CPA and plugin follow the latest stable upstream releases through image builds, checked every 30 minutes; plugin compatibility patches and tests run before publication.
 - Official CLI is pinned to `1.2.12` with a verified SHA256.
 - Default test model: `gemini-3.8-flash`; plugin API model: `agy/gemini-3.8-flash`.
 - Fixed tags include CPA, plugin, CLI and packaging versions; see [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases) for published versions.
@@ -109,6 +116,49 @@ based on upstream reports, not a guaranteed keyring contract for every environme
 
 ## Plugin installation and persisted data
 
+### Why the bundled plugin must not be updated from the store
+
+This project does more than bundle three upstream binaries. At image build time it applies the
+[disclosed compatibility patch](compat/README.md) to upstream `cliproxy-antigravity` v0.1.3.
+The current patched plugin identifies itself as **`0.1.3+cpa8-route1`**. CPA source is unchanged.
+
+| Fix | Why it is needed |
+| --- | --- |
+| CPA v8 executor routing | Adds the `model_router` capability and `model.route` handler. Nonempty `agy/*` names return `Handled: true, TargetKind: self`, sending requests to the plugin's CLI executor. The unpatched v0.1.3 plugin lacks this route; with no matching CPA provider auth, requests fail with `503 auth_not_found` before agy runs. |
+| SSE framing | Sends bare JSON chunks over the plugin ABI. CPA adds `data:` and the final `[DONE]`, avoiding duplicate `data: data: ...` framing and terminal markers. |
+
+Client API-key validation remains in CPA, and Google authentication remains in the official CLI.
+The patch does not fabricate provider credentials or take over bare model names/native provider routes.
+
+The plugin store distributes upstream binaries, not this image's patched build. Installing one can
+hot-reload the **same plugin ID** from another path, such as
+`linux/amd64/cliproxy-antigravity-v0.1.3.so`, and retire the bundled `cliproxy-antigravity.so`.
+The bundled file may still exist on disk while the unpatched store copy is active.
+**A panel update badge is not proof of compatibility with this distribution.**
+
+The startup checksum marker only manages the seeded file at its own path. It neither locks the
+active plugin version nor prevents store installation or hot replacement. Store copies persist in
+the plugin volume, so restarting or pulling a new image alone may not restore the patched plugin.
+
+**Supported update path:** let this repository track upstream releases, apply the patch and run its
+build/integration checks, then pull the resulting image and recreate the service. Follow the Compose
+update commands above for your service name. Do not separately replace this plugin's `.so` with a
+store/downloaded upstream binary. Keep this restriction until this project explicitly documents a
+tested upstream replacement that no longer needs the patch.
+
+If the store copy has already taken over:
+
+1. Check the active plugin path/version in CPA load or hot-reload logs and the configured `plugins.dir`.
+2. Back up and move only the conflicting unpatched `cliproxy-antigravity` binaries **outside the entire
+   scanned plugin directory tree**, including architecture subdirectories. A backup subdirectory inside
+   `plugins.dir` can still be scanned. Preserve unrelated plugins, config, credentials and data.
+3. Retain the bundled managed copy; if that same file was overwritten, back up and move that conflicting
+   copy out too, allowing startup to seed the image's patched library. Restart the affected service.
+4. Confirm the **active** loaded version is `0.1.3+cpa8-route1` for the current release, then explicitly
+   run an inference check. A model list containing `agy/*` alone does not prove routing works.
+
+### Seeding and persistence
+
 When the Antigravity plugin is enabled, startup copies its bundled library from
 `/opt/cliproxy/bundled-plugins` into the configured writable plugin directory.
 This works even when a bind mount initially hides all image files in `/CLIProxyAPI/plugins`.
@@ -120,6 +170,7 @@ This works even when a bind mount initially hides all image files in `/CLIProxyA
   patched build. Back it up and remove that file explicitly if you want the bundled version seeded.
 - In the default root layout, the plugin store can write to the plugin mount. Management routes and
   credentials remain controlled by your config; startup does not enable the management panel.
+  This writable store support does **not** permit replacing the bundled `cliproxy-antigravity` plugin.
 - Keep plugin databases under the mounted `/CLIProxyAPI/data`, using each plugin's own data-path setting.
   This distribution does not move existing databases or rewrite third-party plugin options.
 
