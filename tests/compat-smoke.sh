@@ -1,30 +1,28 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+trap 'rc=$?; echo "FAIL: compat-smoke.sh line $LINENO (exit $rc)" >&2' ERR
 image=${1:?image required}
 root=$(mktemp -d)
 project="cpa-compat-$RANDOM"
-model=$(cat "$(dirname "$0")/../scripts/test-model.txt")
-expected=$(python3 -c 'import json; print(json.load(open("upstream-versions.json"))["agy"]["version"])')
-[[ "$(docker run --rm --network none "$image" agy --version)" == "$expected" ]]
-# These native commands must work without a writable rootfs or config creation.
-for mode in help discover; do
-  args=(-help)
-  if [[ "$mode" == discover ]]; then args=(discover --help); fi
-  native=$(docker run --rm --network none --read-only --tmpfs /tmp --entrypoint /CLIProxyAPI/CLIProxyAPI "$image" "${args[@]}" 2>&1)
-  wrapped=$(docker run --rm --network none --read-only --tmpfs /tmp "$image" ./CLIProxyAPI "${args[@]}" 2>&1)
-  [[ "$native" == "$wrapped" ]]
-done
-echo 'PASS: native help and discover help match direct CPA execution on a read-only rootfs.'
 compose() { CLIPROXY_COMPAT_IMAGE="$image" CLIPROXY_TEST_MODEL="$model" docker compose -p "$project" -f "$root/compose.yaml" "$@"; }
 cleanup() {
   result=$?
-  if [[ "$result" != 0 ]]; then compose logs >&2 || true; fi
-  compose down --remove-orphans >/dev/null || true
+  if [[ -f "$root/compose.yaml" ]]; then
+    if [[ "$result" != 0 ]]; then compose logs >&2 || true; fi
+    compose down --remove-orphans >/dev/null || true
+  fi
   # The container creates root-owned files in these synthetic test mounts.
-  docker run --rm --entrypoint sh -v "$root:/test" "$image" -c 'rm -rf /test/*' || true
+  if [[ -f "$root/compose.yaml" ]]; then
+    docker run --rm --entrypoint sh -v "$root:/test" "$image" -c 'rm -rf /test/*' || true
+  fi
   rmdir "$root" || true
+  return "$result"
 }
 trap cleanup EXIT
+model=$(cat "$(dirname "$0")/../scripts/test-model.txt")
+expected=$(python3 -c 'import json; print(json.load(open("upstream-versions.json"))["agy"]["version"])')
+# Keep Docker's two output streams separate: their multiplexed order is not stable.
+python3 "$(dirname "$0")/cli_contract.py" "$image" "$expected"
 mkdir -p "$root/auths" "$root/logs" "$root/plugins" "$root/data"
 cat > "$root/config.yaml" <<'YAML'
 # Existing legacy layout, deliberately left unchanged by the distribution.
