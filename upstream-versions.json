@@ -2,8 +2,8 @@
   "schema": 1,
   "cpa": {
     "repository": "router-for-me/CLIProxyAPI",
-    "version": "v8.0.22",
-    "commit": "67465884ca179a8f9098328d03a361b50003fdd7"
+    "version": "v8.0.23",
+    "commit": "d318bcc3afb9ea8782862f5e8cdb541afdc9dfa5"
   },
   "plugin": {
     "repository": "adeebahmad01/cliproxy-antigravity",
