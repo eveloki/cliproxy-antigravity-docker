@@ -45,10 +45,11 @@ plugins:
 YAML
 # Disabled synthetic native credential: enumerate only, never contact a provider.
 printf '%s\n' '{"type":"codex","email":"compat@example.invalid","access_token":"synthetic-not-a-token","disabled":true}' > "$root/auths/compat-codex.json"
+chmod 600 "$root/auths/compat-codex.json"
 printf 'existing plugin sidecar\n' > "$root/plugins/user-sidecar.txt"
 printf 'existing data\n' > "$root/data/existing.db"
 config_hash=$(sha256sum "$root/config.yaml" | cut -d ' ' -f1)
-auth_hash=$(sha256sum "$root/auths/compat-codex.json" | cut -d ' ' -f1)
+
 cat > "$root/compose.yaml" <<'YAML'
 services:
   cli-proxy-api:
@@ -132,5 +133,18 @@ assert Path('/CLIProxyAPI/data/persisted.db').read_text() == 'plugin data surviv
 assert Path('/CLIProxyAPI/plugins/writable.txt').is_file()
 PY
 [[ "$(sha256sum "$root/config.yaml" | cut -d ' ' -f1)" == "$config_hash" ]]
-[[ "$(sha256sum "$root/auths/compat-codex.json" | cut -d ' ' -f1)" == "$auth_hash" ]]
+# CPA atomically persists Codex auth as runtime-owned 0600 JSON. Read as the
+# runtime user and compare every JSON field, allowing only serialization changes.
+compose exec -T cli-proxy-api python3 - <<'PYAUTH'
+import json, os, stat
+from pathlib import Path
+p = Path('/root/.cli-proxy-api/compat-codex.json')
+expected = {'type': 'codex', 'email': 'compat@example.invalid',
+            'access_token': 'synthetic-not-a-token', 'disabled': True}
+assert json.loads(p.read_text()) == expected, 'Synthetic credential fields changed'
+info = p.stat()
+assert info.st_uid == os.getuid(), 'Credential is not owned by runtime user'
+assert stat.S_IMODE(info.st_mode) == 0o600, 'Credential permissions must be 0600'
+print('PASS: all synthetic credential fields preserved; runtime ownership and 0600 permissions verified.')
+PYAUTH
 echo 'PASS: upstream five-bind layout, root/WORKDIR, legacy read-only config, native CPA auth, writable plugins/logs/data, agy child HOME and recreation persistence.'

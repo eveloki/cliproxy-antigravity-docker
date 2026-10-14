@@ -29,3 +29,16 @@
 SHA256：`26c7c4c661d6c9beda734fcf305031056a6ea46e697c4533e8151179724e2950`。
 已下载并核对哈希，本地 `antigravity --version` 返回 `1.2.12`。
 CLI 固定版本不参与定时升级；CPA/插件继续解析最新正式 Release 并经测试后发布。
+
+## CLI 更新（2026-10-14）
+
+升级到官方正式版 [1.3.4](https://github.com/google-antigravity/antigravity-cli/releases/tag/1.3.4)。
+Linux x64 资产：`agy_cli_linux_x64.tar.gz`。官方 Release 资产 SHA256：
+`db5e81e8dee72d282cb1fb5fcd98dc5a43680730d71e3d637a67c874ec077ad3`。
+Docker 构建下载后校验该摘要；CI 检查真实 CLI 的无网络、非 root 启动，
+并通过 mock 验证 CPA/插件集成。真实 Google 登录与推理仍需部署后验收。
+CLI 继续固定版本；本次更新不改变 CPA/插件自动跟踪策略。
+
+新版 CPA 的 Codex 凭据持久化会原子重写 JSON 并使用运行用户所有权和 `0600` 权限。
+兼容测试从容器内读取合成凭据，严格比较全部 JSON 字段；旧卷测试继续检查
+UID/GID/权限及其他文件的原始字节，仅允许该 Codex JSON 的空白和键顺序变化。

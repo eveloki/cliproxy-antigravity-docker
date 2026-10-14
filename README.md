@@ -14,7 +14,7 @@ can keep its Compose file and replace the image name.
 > The warning applies to `cliproxy-antigravity`; see the explanation and recovery steps below.
 
 - CPA and plugin follow the latest stable upstream releases through image builds, checked every 30 minutes; plugin compatibility patches and tests run before publication.
-- Official CLI is pinned to `1.2.12` with a verified SHA256.
+- Official CLI is pinned to `1.3.4` with a verified SHA256.
 - Default test model: `gemini-3.8-flash`; plugin API model: `agy/gemini-3.8-flash`.
 - Fixed tags include CPA, plugin, CLI and packaging versions; see [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases) for published versions.
 - Published platform: `linux/amd64`. ARM64 and Docker Desktop are not separately validated.

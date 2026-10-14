@@ -44,6 +44,7 @@ class UpstreamTests(unittest.TestCase):
         self.assertEqual(self.lock, before)
 
     def test_stable_tag_and_packaging_revision(self):
+        self.lock['agy']['version'] = '1.2.12'  # Explicit historical tag fixture.
         self.lock['cpa']['version'] = 'v8.0.3'
         self.lock['plugin']['version'] = '0.1.3'
         self.lock['packaging_revision'] = 1

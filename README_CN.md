@@ -12,7 +12,7 @@
 > 此限制针对 `cliproxy-antigravity`；具体原因和误更新后的恢复方式见下文。
 
 - CPA 和插件每 30 分钟检查最新正式 Release，在镜像构建中应用插件兼容补丁并通过测试后自动发布。
-- 官方 CLI 固定为 `1.2.12`，构建时校验 SHA256。
+- 官方 CLI 固定为 `1.3.4`，构建时校验 SHA256。
 - 默认测试模型：`gemini-3.8-flash`；插件 API 模型：`agy/gemini-3.8-flash`。
 - 固定标签包含 CPA、插件、CLI 和打包修订版本；已发布版本见 [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases)。
 - 发布平台为 `linux/amd64`，ARM64 和 Docker Desktop 未单独验收。

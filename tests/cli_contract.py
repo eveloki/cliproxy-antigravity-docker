@@ -30,6 +30,18 @@ def main(image, expected):
     if version.stdout.decode().strip() != expected:
         raise AssertionError(f'agy version: expected={expected!r}; stdout={version.stdout!r}; stderr={version.stderr!r}')
     print(f'PASS: wrapped agy version is {expected}.', flush=True)
+    # Real CLI surface used by the plugin, without Google credentials/network.
+    cli_help = probe('agy --help', ['docker', 'run', '--rm', '--network', 'none',
+        '--user', '10001:10001', '-e', 'HOME=/home/cliproxy',
+        '-e', 'AGY_HOME=/home/cliproxy', image, 'agy', '--help'])
+    help_text = (cli_help.stdout + cli_help.stderr).decode(errors='replace')
+    for flag in ('--output-format', '--print-timeout', '--model', '--effort', '--conversation'):
+        if flag not in help_text:
+            raise AssertionError(f'agy help no longer advertises plugin argument {flag}')
+    probe('agy models --help', ['docker', 'run', '--rm', '--network', 'none',
+        '--user', '10001:10001', '-e', 'HOME=/home/cliproxy',
+        '-e', 'AGY_HOME=/home/cliproxy', image, 'agy', 'models', '--help'])
+    print('PASS: real agy CLI advertises required plugin arguments and models subcommand help.', flush=True)
     for args in (['-help'], ['discover', '--help']):
         label = ' '.join(args)
         common = ['docker', 'run', '--rm', '--network', 'none', '--read-only', '--tmpfs', '/tmp']

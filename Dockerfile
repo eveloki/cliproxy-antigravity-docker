@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # Personal stable distribution. Fixed official CLI; no account is baked in.
 FROM debian:bookworm-slim AS agy-builder
-ARG AGY_VERSION=1.2.12
-ARG AGY_SHA256=26c7c4c661d6c9beda734fcf305031056a6ea46e697c4533e8151179724e2950
+ARG AGY_VERSION=1.3.4
+ARG AGY_SHA256=db5e81e8dee72d282cb1fb5fcd98dc5a43680730d71e3d637a67c874ec077ad3
 ARG TARGETARCH
 RUN test "$TARGETARCH" = amd64 && \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
