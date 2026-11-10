@@ -18,9 +18,9 @@ RUN curl --fail --silent --show-error --location --proto '=https' --proto-redir 
     printf 'AGY_VERSION=%s\nAGY_ARCHIVE_SHA256=%s\nAGY_SOURCE=https://github.com/google-antigravity/antigravity-cli\n' \
       "$AGY_VERSION" "$AGY_SHA256" > /out/agy/provenance.txt && rm /tmp/agy.tar.gz
 FROM golang:1.26-bookworm AS builder
-ARG CPA_COMMIT=4b3f2c7ec7cd77b3b53b39583edb3a30b4a0d3f7
+ARG CPA_COMMIT=6db7d4b839d86c5b24e17bbe73bcd4db18ef1b1a
 ARG PLUGIN_COMMIT=89d4a3ded47a375a446eac8739a03f6cbda00755
-ARG CPA_VERSION=v8.0.62
+ARG CPA_VERSION=v8.0.63
 ARG PLUGIN_VERSION=v0.1.3
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git python3 ca-certificates && rm -rf /var/lib/apt/lists/*
