@@ -19,10 +19,25 @@ cleanup() {
 trap cleanup EXIT
 cp "$(dirname "$0")/mock-agy.sh" "$mock"
 chmod 755 "$mock"
+# Disable scheduling cooldown only in this synthetic test container so one
+# injected failure does not hide subsequent parser/error-propagation cases.
+runtime_command=$(cat <<'SH'
+python3 /opt/cliproxy/scripts/init-config.py
+python3 - <<'PY'
+import yaml
+from pathlib import Path
+p = Path('/config/config.yaml')
+cfg = yaml.safe_load(p.read_text())
+cfg.setdefault('routing', {}).setdefault('cooldown', {})['disable-cooling'] = True
+p.write_text(yaml.safe_dump(cfg))
+PY
+exec /opt/cliproxy/scripts/entrypoint.sh serve
+SH
+)
 container=$(docker create --network none --cap-drop ALL --security-opt no-new-privileges:true \
   -e CLIPROXY_TEST_MODEL="$model" --user 10001:10001 \
   -e HOME=/home/cliproxy -e AGY_HOME=/home/cliproxy -e CPA_CONFIG=/config/config.yaml \
-  --workdir /home/cliproxy/workspace "$image")
+  --workdir /home/cliproxy/workspace "$image" bash -ec "$runtime_command")
 docker cp "$mock" "$container:/opt/agy/agy"
 docker start "$container" >/dev/null
 ready=false
@@ -99,10 +114,16 @@ except urllib.error.HTTPError:
     pass
 else:
     raise AssertionError('Unprefixed model was unexpectedly handled')
-assert not list(Path('/home/cliproxy/.cli-proxy-api').glob('*.json')), 'Unexpected CPA credentials'
+# Upstream >=0.3 creates token-free scheduling/quota metadata for the CLI account.
+for path in Path('/home/cliproxy/.cli-proxy-api').glob('*.json'):
+    meta = json.loads(path.read_text())
+    assert meta.get('type') == 'agy', 'Unexpected provider credential'
+    assert not any(meta.get(k) for k in ('access_token', 'refresh_token', 'id_token')), 'Unexpected OAuth token'
 calls = Path('/home/cliproxy/mock-agy-invocations').read_text().splitlines()
 model = os.environ['CLIPROXY_TEST_MODEL']
 assert calls == ['json:' + model, 'stream-json:' + model], calls
 PY
 echo 'PASS: non-root container; pinned model reaches mock agy in non-streaming and SSE modes; client auth and native routes preserved.'
 echo 'Google OAuth and real model inference are NOT tested; agy --version was checked separately.'
+
+docker exec -i "$container" python3 - < tests/early-finish-smoke.py

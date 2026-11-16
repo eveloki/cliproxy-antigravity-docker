@@ -21,10 +21,11 @@ else
   fi
   cat >/dev/null
   printf '%s:%s\n' "$format" "$selected_model" >> "$HOME/mock-agy-invocations"
+  reason=$(cat "$HOME/mock-finished-reason" 2>/dev/null || true)
   if [ "$format" = stream-json ]; then
     printf '%s\n' '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"mock response"}}'
-    printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"mock response","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}'
+    printf '{"event":"result","result":{"status":"SUCCESS","finished_reason":"%s","response":"mock response","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}\n' "$reason"
   else
-    printf '%s\n' '{"status":"SUCCESS","response":"mock response","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}'
+    printf '{"status":"SUCCESS","finished_reason":"%s","response":"mock response","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}\n' "$reason"
   fi
 fi

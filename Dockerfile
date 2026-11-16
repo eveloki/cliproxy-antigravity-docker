@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # Personal stable distribution. Fixed official CLI; no account is baked in.
 FROM debian:bookworm-slim AS agy-builder
-ARG AGY_VERSION=1.3.4
-ARG AGY_SHA256=db5e81e8dee72d282cb1fb5fcd98dc5a43680730d71e3d637a67c874ec077ad3
+ARG AGY_VERSION=1.5.9
+ARG AGY_SHA256=8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa
 ARG TARGETARCH
 RUN test "$TARGETARCH" = amd64 && \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
@@ -18,10 +18,10 @@ RUN curl --fail --silent --show-error --location --proto '=https' --proto-redir 
     printf 'AGY_VERSION=%s\nAGY_ARCHIVE_SHA256=%s\nAGY_SOURCE=https://github.com/google-antigravity/antigravity-cli\n' \
       "$AGY_VERSION" "$AGY_SHA256" > /out/agy/provenance.txt && rm /tmp/agy.tar.gz
 FROM golang:1.26-bookworm AS builder
-ARG CPA_COMMIT=43806c865da7d47f9252316e95e315ad9f885b84
-ARG PLUGIN_COMMIT=89d4a3ded47a375a446eac8739a03f6cbda00755
-ARG CPA_VERSION=v8.0.73
-ARG PLUGIN_VERSION=v0.1.3
+ARG CPA_COMMIT=c19787b25262b5e6e46a9e8da62f4333e7e478bc
+ARG PLUGIN_COMMIT=f2b4ac2c5fd5df7b9fe11f32b711715e3d39c60a
+ARG CPA_VERSION=v8.0.75
+ARG PLUGIN_VERSION=v0.3.1
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git python3 ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts/fetch-source.sh /usr/local/bin/fetch-source
@@ -33,20 +33,21 @@ RUN go mod download && go mod verify && \
     go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /out/CLIProxyAPI ./cmd/server/
 WORKDIR /src/plugin
 COPY compat/ /compat/
-RUN git apply --check /compat/plugin-model-router.patch && \
-    git apply /compat/plugin-model-router.patch && \
-    cp /compat/distribution_router*.go . && \
-    gofmt -w distribution_router*.go plugin.go && \
+RUN git apply --check /compat/plugin-distribution.patch && \
+    git apply /compat/plugin-distribution.patch && \
+    python3 /compat/stamp-version.py plugin.go "$PLUGIN_VERSION" && \
+    cp /compat/distribution_*.go . && \
+    gofmt -w distribution_*.go agy.go plugin.go && \
     go test ./... && \
-    go build -trimpath -buildmode=c-shared -ldflags="-s -w" -o /out/cliproxy-antigravity.so . && \
+    go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="-s -w" -o /out/cliproxy-antigravity.so . && \
     python3 scripts/abi_smoke.py /out/cliproxy-antigravity.so
 RUN mkdir -p /out/licenses && \
     cp /src/cpa/LICENSE /out/licenses/CLIProxyAPI.LICENSE && \
     cp /src/plugin/LICENSE /out/licenses/cliproxy-antigravity.LICENSE && \
     cp /src/plugin/THIRD_PARTY_NOTICES.md /out/licenses/plugin-THIRD_PARTY_NOTICES.md && \
     printf 'CPA_VERSION=%s\nCPA_COMMIT=%s\nPLUGIN_VERSION=%s\nPLUGIN_COMMIT=%s\n' "$CPA_VERSION" "$CPA_COMMIT" "$PLUGIN_VERSION" "$PLUGIN_COMMIT" > /out/upstream-versions.txt
-RUN printf 'PLUGIN_COMPAT=cpa8-route1\n' >> /out/upstream-versions.txt && \
-    cd /compat && sha256sum plugin-model-router.patch distribution_router.go >> /out/upstream-versions.txt
+RUN printf 'PLUGIN_COMPAT=dist1\n' >> /out/upstream-versions.txt && \
+    cd /compat && sha256sum plugin-distribution.patch stamp-version.py distribution_*.go >> /out/upstream-versions.txt
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \

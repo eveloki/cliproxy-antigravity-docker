@@ -1,5 +1,22 @@
 # 测试状态：正式版 / Stable
 
+## Release validation (2026-11-17)
+
+Latest failure [43841826880](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/43841826880)
+tried CPA v8.0.75/plugin v0.2.2, but the old v0.1.3 router patch no longer applied.
+Prepared candidate: CPA v8.0.75/plugin v0.3.1/CLI 1.5.9. The old router/SSE patch is
+retired; namespace isolation and CLI `finished_reason` checks are disclosed in `compat/README.md`.
+
+Local verification: 35 Python tests, plugin upstream/distribution Go tests and ABI smoke,
+real CLI archive checksum/version/help, and native CPA + shared plugin HTTP checks.
+The HTTP checks cover normal JSON/SSE with one DONE, client authentication, namespace
+isolation, and rejection of early-finished JSON/SSE. Test scheduling cooldown is disabled
+only in synthetic test configs so one injected failure cannot hide subsequent cases.
+No production config is changed. No real Google credentials or inference are used.
+Full Docker, five-bind and RC-volume upgrade/recreation/rollback checks are mandatory
+CI release gates. The local checks above do not replace those container checks.
+
+
 ## RC 卷迁移与兼容性复查（2026-10-01，r3 已发布）
 
 生产侧报告正确指出：先前非 root smoke 使用新容器，没有挂载 RC 创建的旧命名卷。
