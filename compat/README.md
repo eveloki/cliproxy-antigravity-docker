@@ -1,33 +1,39 @@
-# CPA v8 static executor routing compatibility
+# Distribution safeguards for upstream plugin v0.3.1
 
-This distribution applies `plugin-model-router.patch` and adds
-`distribution_router.go` to cliproxy-antigravity v0.1.3 during the image build.
-The resulting plugin identifies itself as `0.1.3+cpa8-route1`. CPA is unchanged.
-This is an explicit downstream compatibility patch, not an upstream release.
+The candidate builds upstream commit `f2b4ac2c5fd5df7b9fe11f32b711715e3d39c60a`
+with `plugin-distribution.patch` and `distribution_*.go`, identifying as
+`0.3.1+dist1`. CPA source is not patched. `git apply --check`, upstream Go tests,
+distribution Go tests and the upstream ABI smoke must pass before building the image.
+No failed patch is silently skipped. Source commits and patch/helper SHA256 values
+are recorded inside `/opt/cliproxy/upstream-versions.txt`.
 
-CPA v8 only takes its direct plugin executor path after a ModelRouter returns
-`Handled: true, TargetKind: self`. The upstream plugin advertises a static
-executor but no router, so an empty CPA auth pool yields `auth_not_found` before
-the official CLI can run. This patch supplies the missing ABI capability and
-`model.route` handler for **nonempty `agy/*` names only**. It leaves bare model
-names and the native `antigravity/*` provider alone. Incoming client API-key
-validation remains in CPA; Google authentication remains in the official CLI.
-There are no synthetic provider credentials and no token extraction.
+## Retired v0.1.3 compatibility layer
 
-The same compatibility patch removes the plugin's HTTP SSE envelope at the host
-callback boundary: CPA adds `data:` itself and emits the terminal `[DONE]`.
-Keeping both envelopes would produce invalid `data: data: ...` events.
-The plugin sends bare JSON chunks and leaves DONE emission to CPA.
+The v0.1.3 ModelRouter/SSE patch is no longer applied. Upstream v0.2.0+ implements
+ModelRouter, and CPA v8.0.75 handles upstream SSE framing. See the
+[maintainer's reply](https://github.com/adeebahmad01/cliproxy-antigravity/issues/5#issuecomment-6903517407).
+Applying the old patch to the new plugin caused the recent automated build failures.
+The retired files remain available in git history.
 
-`git apply --check` must succeed before the build modifies upstream sources.
-New upstream versions that invalidate the patch or already add the route will
-fail the build/tests and require review; no silent patch skipping is allowed.
-The upstream pins plus the patch/source SHA256 values are recorded inside
-`/opt/cliproxy/upstream-versions.txt`.
+## Remaining safeguards
 
-Checks: Go tests exercise the real ABI dispatcher, namespace exclusions and
-invalid JSON. The Docker test checks the full HTTP path with a mock CLI,
-non-streaming and SSE responses, the exact selected model, and client API auth.
-Passing these checks does not validate Google login, token refresh or real
-model availability. Remove this compatibility layer after a tested upstream
-release provides the same behavior.
+- Keep published models and routing in the explicit `agy/*` namespace. Upstream's
+  bare model IDs and `antigravity/*` aliases are excluded at the ABI boundary,
+  preserving existing native CPA routing. Configured `agy` provider auth records
+  retain upstream scheduling. Upstream may write token-free scheduling/quota metadata.
+- Official CLI >=1.4.11 adds `finished_reason` for incomplete turns. A nonempty
+  reason must not become a successful OpenAI completion. Reject timeout with 504,
+  interruption/error/unknown reasons with 502. Streaming errors use upstream
+  structured stream-close handling and never emit a successful finish chunk.
+  Already streamed partial text cannot be retracted. Both wrapped and legacy flat
+  terminal events are checked; normal results with no reason remain compatible.
+
+Keep using image upgrades for this bundled plugin. A store binary can replace it
+from a second path with the same plugin ID and remove these safeguards. The
+managed checksum marker does not pin the active plugin. Older v0.1.3 store copies
+also still have the historical routing defect. Do not infer that modern upstream
+versions lack routing simply because the store restriction remains.
+
+Local tests use mock inference. The real CLI binary is checked for version and
+required arguments without login. Docker/old-volume checks remain release gates;
+Google authentication and live model inference require deployment acceptance.

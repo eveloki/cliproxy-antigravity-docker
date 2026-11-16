@@ -42,3 +42,16 @@ CLI 继续固定版本；本次更新不改变 CPA/插件自动跟踪策略。
 新版 CPA 的 Codex 凭据持久化会原子重写 JSON 并使用运行用户所有权和 `0600` 权限。
 兼容测试从容器内读取合成凭据，严格比较全部 JSON 字段；旧卷测试继续检查
 UID/GID/权限及其他文件的原始字节，仅允许该 Codex JSON 的空白和键顺序变化。
+
+## Upstream refresh (2026-11-17)
+
+- CPA v8.0.75: `c19787b25262b5e6e46a9e8da62f4333e7e478bc`.
+- Plugin v0.3.1: `f2b4ac2c5fd5df7b9fe11f32b711715e3d39c60a`.
+- Official CLI [1.5.9](https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.9),
+  Linux x64 SHA256 `8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa`.
+  Downloaded archive hash matches the official asset digest; local binary version/help verified.
+- CLI [1.4.11 changelog](https://github.com/google-antigravity/antigravity-cli/blob/main/CHANGELOG.md#1411)
+  documents `finished_reason`. Upstream plugin v0.3.1 ignores that field; this distribution
+  adds the explicit termination guard described in `compat/README.md`.
+- Fixed tags, latest/stable promotion checks, historical rc images and Compose volume layout
+  remain unchanged. CLI remains manually pinned rather than following unattended updates.

@@ -8,13 +8,13 @@ can keep its Compose file and replace the image name.
 
 > [!WARNING]
 > **Do not install, update or reinstall `cliproxy-antigravity` through the management panel's plugin store,
-> even if the panel offers an update.** This image bundles a patched plugin required for CPA v8 routing
-> and SSE compatibility. A store binary can replace the active patched plugin and bring back
-> `503 auth_not_found`. Update this plugin **only by upgrading this project's Docker image**.
+> even if the panel offers an update.** This image bundles a plugin with distribution-specific
+> `agy/` namespace isolation and early-termination checks for CLI 1.5.9. A store binary can hot-replace
+> that build and lose these guarantees. Update this plugin **only by upgrading this project's Docker image**.
 > The warning applies to `cliproxy-antigravity`; see the explanation and recovery steps below.
 
 - CPA and plugin follow the latest stable upstream releases through image builds, checked every 30 minutes; plugin compatibility patches and tests run before publication.
-- Official CLI is pinned to `1.3.4` with a verified SHA256.
+- Official CLI is pinned to `1.5.9` with a verified SHA256.
 - Default test model: `gemini-3.8-flash`; plugin API model: `agy/gemini-3.8-flash`.
 - Fixed tags include CPA, plugin, CLI and packaging versions; see [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases) for published versions.
 - Published platform: `linux/amd64`. ARM64 and Docker Desktop are not separately validated.
@@ -118,33 +118,28 @@ based on upstream reports, not a guaranteed keyring contract for every environme
 
 ### Why the bundled plugin must not be updated from the store
 
-This project does more than bundle three upstream binaries. At image build time it applies the
-[disclosed compatibility patch](compat/README.md) to upstream `cliproxy-antigravity` v0.1.3.
-The current patched plugin identifies itself as **`0.1.3+cpa8-route1`**. CPA source is unchanged.
+This image uses upstream plugin **v0.3.1** with the [disclosed distribution patch](compat/README.md),
+identified as **`0.3.1+dist1`**. CPA source is unchanged.
 
-| Fix | Why it is needed |
+| Behavior | Current implementation |
 | --- | --- |
-| CPA v8 executor routing | Adds the `model_router` capability and `model.route` handler. Nonempty `agy/*` names return `Handled: true, TargetKind: self`, sending requests to the plugin's CLI executor. The unpatched v0.1.3 plugin lacks this route; with no matching CPA provider auth, requests fail with `503 auth_not_found` before agy runs. |
-| SSE framing | Sends bare JSON chunks over the plugin ABI. CPA adds `data:` and the final `[DONE]`, avoiding duplicate `data: data: ...` framing and terminal markers. |
+| CPA v8 routing and SSE | Upstream v0.2.0+ supplies ModelRouter and standard SSE. The old v0.1.3 route/SSE patch has been removed. [The author confirmed the intended contract](https://github.com/adeebahmad01/cliproxy-antigravity/issues/5#issuecomment-6903517407). |
+| Namespace isolation | The distribution publishes and routes only explicit `agy/*` models, preserving its existing policy. Upstream's additional bare-name and `antigravity/*` aliases are not claimed here. Configured native `agy` credentials retain upstream scheduling. |
+| Early termination | CLI `finished_reason` values such as `print_timeout`, `interrupted`, `error`, or an unknown value must produce an error rather than a successful completion, even if `status` is `SUCCESS` and the process exits 0. |
 
-Client API-key validation remains in CPA, and Google authentication remains in the official CLI.
-The patch does not fabricate provider credentials or take over bare model names/native provider routes.
+Google login remains in the official CLI. The new plugin may create token-free CPA `agy` account
+metadata for scheduling and quota display; it does not export Google's access/refresh tokens.
 
-The plugin store distributes upstream binaries, not this image's patched build. Installing one can
-hot-reload the **same plugin ID** from another path, such as
-`linux/amd64/cliproxy-antigravity-v0.1.3.so`, and retire the bundled `cliproxy-antigravity.so`.
-The bundled file may still exist on disk while the unpatched store copy is active.
-**A panel update badge is not proof of compatibility with this distribution.**
+A store binary can hot-replace the **same plugin ID** from another path and remove namespace and
+termination protection. **The historical v0.1.3 `auth_not_found` defect was fixed upstream; the
+current store restriction is about these remaining distribution guarantees.**
+The seed checksum marker neither locks the active plugin nor prevents store replacement.
+Store copies persist in the volume, so restarting or pulling a new image alone may not restore it.
 
-The startup checksum marker only manages the seeded file at its own path. It neither locks the
-active plugin version nor prevents store installation or hot replacement. Store copies persist in
-the plugin volume, so restarting or pulling a new image alone may not restore the patched plugin.
-
-**Supported update path:** let this repository track upstream releases, apply the patch and run its
-build/integration checks, then pull the resulting image and recreate the service. Follow the Compose
-update commands above for your service name. Do not separately replace this plugin's `.so` with a
-store/downloaded upstream binary. Keep this restriction until this project explicitly documents a
-tested upstream replacement that no longer needs the patch.
+**Supported update path:** pull a tested release of this image and recreate the service using the
+Compose commands above. Keep the bundled plugin rather than separately replacing its `.so`.
+New source versions still require the distribution patch to apply and pass tests; the build never
+silently ignores a failed patch.
 
 If the store copy has already taken over:
 
@@ -154,7 +149,7 @@ If the store copy has already taken over:
    `plugins.dir` can still be scanned. Preserve unrelated plugins, config, credentials and data.
 3. Retain the bundled managed copy; if that same file was overwritten, back up and move that conflicting
    copy out too, allowing startup to seed the image's patched library. Restart the affected service.
-4. Confirm the **active** loaded version is `0.1.3+cpa8-route1` for the current release, then explicitly
+4. Confirm the **active** loaded version is `0.3.1+dist1` for this release, then explicitly
    run an inference check. A model list containing `agy/*` alone does not prove routing works.
 
 ### Seeding and persistence
@@ -174,7 +169,7 @@ This works even when a bind mount initially hides all image files in `/CLIProxyA
 - Keep plugin databases under the mounted `/CLIProxyAPI/data`, using each plugin's own data-path setting.
   This distribution does not move existing databases or rewrite third-party plugin options.
 
-The bundled plugin includes the disclosed [CPA route/SSE compatibility patch](compat/README.md).
+The bundled plugin includes the disclosed [CLI termination and namespace patch](compat/README.md).
 CPA source itself is not modified. Configuration-format compatibility does not guarantee every
 third-party plugin is compatible with every automatically updated CPA release.
 
@@ -253,7 +248,7 @@ This distribution packages three upstream projects:
 | Upstream | Role |
 | --- | --- |
 | [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) | API proxy server; follows stable releases. |
-| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI executor plugin; follows stable releases with the disclosed compatibility patch. |
+| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI executor plugin; follows stable releases with disclosed namespace/CLI termination safeguards. |
 | [google-antigravity/antigravity-cli](https://github.com/google-antigravity/antigravity-cli) | Official Antigravity CLI; bundled at a pinned version with SHA256 verification. |
 
 See [upstream records](docs/UPSTREAM.md), `upstream-versions.json` and

@@ -1,0 +1,85 @@
+diff --git a/agy.go b/agy.go
+index 4539dd8..d7baa28 100644
+--- a/agy.go
++++ b/agy.go
+@@ -25,6 +25,7 @@ type agyUsage struct {
+ }
+ 
+ type agyResult struct {
++	FinishedReason  string   `json:"finished_reason"`
+ 	ConversationID  string   `json:"conversation_id"`
+ 	Status          string   `json:"status"`
+ 	Response        string   `json:"response"`
+@@ -47,10 +48,11 @@ type agyStreamEvent struct {
+ 	Result *agyResult `json:"result"`
+ 
+ 	// Some older builds can emit a terminal result without an event wrapper.
+-	Status   string   `json:"status"`
+-	Response string   `json:"response"`
+-	Error    string   `json:"error"`
+-	Usage    agyUsage `json:"usage"`
++	FinishedReason string   `json:"finished_reason"`
++	Status         string   `json:"status"`
++	Response       string   `json:"response"`
++	Error          string   `json:"error"`
++	Usage          agyUsage `json:"usage"`
+ }
+ 
+ type agyOptions struct {
+@@ -825,6 +827,9 @@ func runAgyJSON(cfg pluginConfig, opts agyOptions, prompt string) (agyResult, st
+ 		return agyResult{}, stderr.String(), pError("invalid_upstream_response", "agy returned invalid JSON: "+errParse.Error(), http.StatusBadGateway)
+ 	}
+ 
++	if err := distributionResultError(result); err != nil {
++		return result, stderr.String(), err
++	}
+ 	if !strings.EqualFold(result.Status, "SUCCESS") {
+ 		msg := strings.TrimSpace(result.Error)
+ 		if msg == "" {
+@@ -1118,7 +1123,7 @@ func executeStream(req rpcExecutorRequest) {
+ 			}
+ 		default:
+ 			if event.Status != "" {
+-				terminal = &agyResult{Status: event.Status, Response: event.Response, Error: event.Error, Usage: event.Usage, ConversationID: event.ConversationID}
++				terminal = &agyResult{FinishedReason: event.FinishedReason, Status: event.Status, Response: event.Response, Error: event.Error, Usage: event.Usage, ConversationID: event.ConversationID}
+ 				if event.ConversationID != "" {
+ 					conversationID = event.ConversationID
+ 				}
+@@ -1148,6 +1153,10 @@ func executeStream(req rpcExecutorRequest) {
+ 		}
+ 		return
+ 	}
++	if err := distributionResultError(*terminal); err != nil {
++		closePluginStream(streamID, err)
++		return
++	}
+ 	if !strings.EqualFold(terminal.Status, "SUCCESS") {
+ 		msg := nonEmpty(terminal.Error, "Antigravity CLI ended with status "+terminal.Status)
+ 		closePluginStream(streamID, classifyAgyError(errors.New(msg), stderr.String()))
+diff --git a/plugin.go b/plugin.go
+index 48354c8..26cb030 100644
+--- a/plugin.go
++++ b/plugin.go
+@@ -257,11 +257,11 @@ func handleMethod(method string, request []byte) ([]byte, error) {
+ 		return okEnvelope(pluginRegistration())
+ 
+ 	case methodModelRegister:
+-		models := discoverModels(currentConfig())
++		models := distributionModels(discoverModels(currentConfig()))
+ 		return okEnvelope(modelRegistrationResponse{Provider: providerID, Models: models})
+ 
+ 	case methodModelStatic:
+-		models := discoverModels(currentConfig())
++		models := distributionModels(discoverModels(currentConfig()))
+ 		return okEnvelope(modelResponse{Provider: providerID, Models: models})
+ 
+ 	case methodModelRoute:
+@@ -269,7 +269,7 @@ func handleMethod(method string, request []byte) ([]byte, error) {
+ 		if err := json.Unmarshal(request, &req); err != nil {
+ 			return nil, pError("invalid_request", "could not decode model route request: "+err.Error(), 400)
+ 		}
+-		return okEnvelope(routeModel(req))
++		return okEnvelope(distributionRouteModel(req))
+ 
+ 	case methodExecutorIdentifier:
+ 		return okEnvelope(identifierResponse{Identifier: providerID})
