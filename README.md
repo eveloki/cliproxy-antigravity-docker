@@ -9,12 +9,12 @@ can keep its Compose file and replace the image name.
 > [!WARNING]
 > **Do not install, update or reinstall `cliproxy-antigravity` through the management panel's plugin store,
 > even if the panel offers an update.** This image bundles a plugin with distribution-specific
-> `agy/` namespace isolation and early-termination checks for CLI 1.5.9. A store binary can hot-replace
+> `agy/` namespace isolation and early-termination checks for CLI 1.5.14. A store binary can hot-replace
 > that build and lose these guarantees. Update this plugin **only by upgrading this project's Docker image**.
 > The warning applies to `cliproxy-antigravity`; see the explanation and recovery steps below.
 
 - CPA and plugin follow the latest stable upstream releases through image builds, checked every 30 minutes; plugin compatibility patches and tests run before publication.
-- Official CLI is pinned to `1.5.9` with a verified SHA256.
+- Official CLI is pinned to `1.5.14` with a verified SHA256.
 - Default test model: `gemini-3.8-flash`; plugin API model: `agy/gemini-3.8-flash`.
 - Fixed tags include CPA, plugin, CLI and packaging versions; see [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases) for published versions.
 - Published platform: `linux/amd64`. ARM64 and Docker Desktop are not separately validated.
@@ -118,8 +118,8 @@ based on upstream reports, not a guaranteed keyring contract for every environme
 
 ### Why the bundled plugin must not be updated from the store
 
-This image uses upstream plugin **v0.3.1** with the [disclosed distribution patch](compat/README.md),
-identified as **`0.3.1+dist1`**. CPA source is unchanged.
+This image uses upstream plugin **v0.4.0** with the [disclosed distribution patch](compat/README.md),
+identified as **`0.4.0+dist1`**. CPA source is unchanged.
 
 | Behavior | Current implementation |
 | --- | --- |
@@ -138,8 +138,9 @@ Store copies persist in the volume, so restarting or pulling a new image alone m
 
 **Supported update path:** pull a tested release of this image and recreate the service using the
 Compose commands above. Keep the bundled plugin rather than separately replacing its `.so`.
-New source versions still require the distribution patch to apply and pass tests; the build never
-silently ignores a failed patch.
+The build locates safeguard targets using Go syntax rather than line-based patch context.
+Every expected target must be unique; changed structures stop the build before source writes.
+Go/ABI and HTTP tests still gate every update.
 
 If the store copy has already taken over:
 
@@ -149,8 +150,14 @@ If the store copy has already taken over:
    `plugins.dir` can still be scanned. Preserve unrelated plugins, config, credentials and data.
 3. Retain the bundled managed copy; if that same file was overwritten, back up and move that conflicting
    copy out too, allowing startup to seed the image's patched library. Restart the affected service.
-4. Confirm the **active** loaded version is `0.3.1+dist1` for this release, then explicitly
+4. Confirm the **active** loaded version is `0.4.0+dist1` for this release, then explicitly
    run an inference check. A model list containing `agy/*` alone does not prove routing works.
+
+### Conversation IDs when upgrading to plugin v0.4.0
+
+Managed-account conversation IDs are now bound to their originating account. Older raw IDs
+cannot resume those sessions; omit the old ID and replay the transcript or a summary to start
+a new conversation. This is an upstream session-contract change, not a Google credential migration.
 
 ### Seeding and persistence
 

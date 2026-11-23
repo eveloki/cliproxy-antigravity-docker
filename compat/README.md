@@ -1,39 +1,46 @@
-# Distribution safeguards for upstream plugin v0.3.1
+# Distribution safeguards for upstream plugin v0.4.0
 
-The candidate builds upstream commit `f2b4ac2c5fd5df7b9fe11f32b711715e3d39c60a`
-with `plugin-distribution.patch` and `distribution_*.go`, identifying as
-`0.3.1+dist1`. CPA source is not patched. `git apply --check`, upstream Go tests,
-distribution Go tests and the upstream ABI smoke must pass before building the image.
-No failed patch is silently skipped. Source commits and patch/helper SHA256 values
-are recorded inside `/opt/cliproxy/upstream-versions.txt`.
+The candidate uses upstream commit `9054559e99e5a6fd8f834c90480977256816ddd1`
+and identifies the custom plugin as `0.4.0+dist1`. CPA source remains unmodified.
 
-## Retired v0.1.3 compatibility layer
+## Syntax-based preparation
 
-The v0.1.3 ModelRouter/SSE patch is no longer applied. Upstream v0.2.0+ implements
-ModelRouter, and CPA v8.0.75 handles upstream SSE framing. See the
-[maintainer's reply](https://github.com/adeebahmad01/cliproxy-antigravity/issues/5#issuecomment-6903517407).
-Applying the old patch to the new plugin caused the recent automated build failures.
-The retired files remain available in git history.
+`prepare-plugin.go` parses upstream `agy.go` and `plugin.go` with Go's standard AST.
+It identifies the result types, success checks, legacy flat terminal result,
+model registration/static-model dispatch and routing dispatch by their syntax.
+It adds the finished-reason guards and namespace wrappers and checks the source
+plugin version against the pinned build argument before stamping `+dist1`.
+Comments, blank lines and unrelated account/session code do not form part of a
+line-based patch context. Both output files are parsed, validated and formatted
+in memory before any source file is written.
 
-## Remaining safeguards
+Every required target must match exactly once. Missing, duplicated or already
+changed contracts fail the build for review; no unknown structure is silently
+skipped. `prepare-plugin_test.go` covers layout/session changes and failure without
+partial source writes. Go tests, upstream ABI smoke and HTTP integration tests
+remain required. Source commits and transformation/helper SHA256 values are
+recorded in `/opt/cliproxy/upstream-versions.txt`.
 
-- Keep published models and routing in the explicit `agy/*` namespace. Upstream's
-  bare model IDs and `antigravity/*` aliases are excluded at the ABI boundary,
-  preserving existing native CPA routing. Configured `agy` provider auth records
-  retain upstream scheduling. Upstream may write token-free scheduling/quota metadata.
-- Official CLI >=1.4.11 adds `finished_reason` for incomplete turns. A nonempty
-  reason must not become a successful OpenAI completion. Reject timeout with 504,
-  interruption/error/unknown reasons with 502. Streaming errors use upstream
-  structured stream-close handling and never emit a successful finish chunk.
-  Already streamed partial text cannot be retracted. Both wrapped and legacy flat
-  terminal events are checked; normal results with no reason remain compatible.
+The old v0.3.x unified patch failed on the account-aware changes in v0.4.0.
+The retired patch and Python version stamper remain available in git history.
 
-Keep using image upgrades for this bundled plugin. A store binary can replace it
-from a second path with the same plugin ID and remove these safeguards. The
-managed checksum marker does not pin the active plugin. Older v0.1.3 store copies
-also still have the historical routing defect. Do not infer that modern upstream
-versions lack routing simply because the store restriction remains.
+## Preserved safeguards
 
-Local tests use mock inference. The real CLI binary is checked for version and
-required arguments without login. Docker/old-volume checks remain release gates;
-Google authentication and live model inference require deployment acceptance.
+- Publish and route only `agy/*`; upstream's bare names and `antigravity/*` aliases
+  remain excluded at the ABI boundary. Native `agy` credential scheduling and
+  upstream account-bound conversation handling remain intact.
+- Reject nonempty CLI `finished_reason`: timeout returns 504; interruption,
+  errors and unknown early finishes return 502. Wrapped and legacy flat terminal
+  results are checked, even for `status=SUCCESS` with exit code 0. Streaming
+  failures never emit a successful finish chunk; text already streamed cannot be retracted.
+- Preserve upstream v0.4.0's protocol-dependent SSE handling. Do not reinstate
+  the retired v0.1.3 routing/SSE patch or change stream framing in this layer.
+
+Store installation can still hot-replace the same plugin ID from another path,
+removing these safeguards. Keep using tested image upgrades for this plugin;
+the seeding checksum does not pin the active library.
+
+Plugin v0.4.0 binds managed-account conversation IDs to the originating account.
+Old raw IDs cannot resume those sessions; omit them and replay history or a summary.
+See [upstream release notes](https://github.com/adeebahmad01/cliproxy-antigravity/releases/tag/v0.4.0).
+No Google credentials or real inference are exercised in local/CI mocks.
