@@ -34,3 +34,41 @@ class UpgradeSnapshotTests(unittest.TestCase):
             before = state.fingerprint(p)
             p.write_bytes(b'{"a": 1}')
             self.assertNotEqual(before, state.fingerprint(p))
+
+
+class ConfigTransitionTests(unittest.TestCase):
+    def test_only_new_uuid_and_serialization_change_allowed(self):
+        before = {'server': {'port': 8317}, 'access': {'api-keys': ['synthetic']}, 'plugins': {'dir': '/old/plugins'}}
+        after = json.loads(json.dumps(before))
+        after['server']['server-id'] = '706aa936-c50a-4728-8420-a5e94c9c990b'
+        state.config_identity_transition(before, after)
+        self.assertNotIn('server-id', before['server'])  # Do not mutate caller snapshots.
+        for field in ('key', 'port', 'plugin', 'extra'):
+            changed = json.loads(json.dumps(after))
+            if field == 'key': changed['access']['api-keys'] = ['rotated']
+            if field == 'port': changed['server']['port'] = 9999
+            if field == 'plugin': changed['plugins']['dir'] = '/different'
+            if field == 'extra': changed['unexpected'] = True
+            with self.assertRaises(AssertionError): state.config_identity_transition(before, changed)
+
+    def test_invalid_missing_or_existing_identity_rejected(self):
+        before = {'server': {'port': 8317}}
+        for value in (None, '', 'invalid', '00000000-0000-0000-0000-000000000000', 123):
+            with self.assertRaises((AssertionError, ValueError)):
+                state.config_identity_transition(before, {'server': {'port': 8317, 'server-id': value}})
+        with self.assertRaises(AssertionError):
+            state.config_identity_transition({'server': {'server-id': 'old-id'}}, {'server': {'server-id': '706aa936-c50a-4728-8420-a5e94c9c990b'}})
+
+    def test_accepted_config_is_pinned_across_recreation_and_rollback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); p = root / 'config.yaml'; accepted = root / 'accepted.json'
+            p.write_text('# preserve comment\nserver: {port: 8317}\naccess: {api-keys: [synthetic]}\n')
+            p.chmod(0o600)
+            original = state.fingerprint(p)
+            original.update(yaml=state.yaml.safe_load(p.read_text()), comments=state.config_comments(p.read_text()))
+            p.write_text('# preserve comment\nserver: {port: 8317, server-id: 706aa936-c50a-4728-8420-a5e94c9c990b}\naccess: {api-keys: [synthetic]}\n')
+            state.verify_config(p, original, 'new', accepted)
+            state.verify_config(p, original, 'new', accepted)
+            state.verify_config(p, original, 'old', accepted)
+            p.write_text(p.read_text().replace('706aa936-c50a-4728-8420-a5e94c9c990b', '706aa936-c50a-4728-8420-a5e94c9c990c'))
+            with self.assertRaises(AssertionError): state.verify_config(p, original, 'new', accepted)

@@ -180,6 +180,14 @@ The bundled plugin includes the disclosed [CLI termination and namespace patch](
 CPA source itself is not modified. Configuration-format compatibility does not guarantee every
 third-party plugin is compatible with every automatically updated CPA release.
 
+## CPA v8.1 startup identity
+
+CPA v8.1 persists a generated `server.server-id` UUID when it is absent and the config is writable.
+This is upstream behavior. It may reserialize YAML while retaining existing settings; the upgrade
+checks verify the original client key, values, comments, permissions and owner, and require the
+new identity to stay unchanged across recreation and rollback. A read-only config instead uses
+upstream's process-local identity behavior.
+
 ## Existing non-root deployments from this repository
 
 `compose.yaml` retains the earlier named volumes and service name `cliproxy`. **Update that Compose
