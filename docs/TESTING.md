@@ -1,5 +1,25 @@
 # 测试状态：正式版 / Stable
 
+## Candidate validation (2026-11-23; not published)
+
+Latest failure [45071142236](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/45071142236)
+reached CPA v8.1.1/plugin v0.4.0, but the source-context patch could not apply to
+new account/session handling. The release was blocked before image publication.
+The candidate replaces that patch with Go AST preparation and pins official CLI 1.5.14.
+
+35 Python tests and the new Go preparation tests pass. Plugin upstream/distribution Go tests
+and ABI smoke pass. Real CLI checksum/version/required-parameter checks pass.
+Native CPA v8.1.1/shared-plugin HTTP checks cover JSON/SSE with exactly one DONE,
+client authentication, namespace isolation, and early-termination failures.
+PR CI additionally exposed CPA v8.1.1's first startup write of `server.server-id`.
+The upgrade test permits only that valid UUID addition and YAML serialization changes,
+compares every original setting/comment and file permission/owner, then pins the exact
+post-upgrade bytes/metadata for both recreation and rollback. Other changes still fail.
+Full Docker, five-bind and RC-volume upgrade/recreate/rollback checks remain CI release gates.
+No live Google inference or private credentials are used. GitHub submission/publication is
+pending the user's approval for this candidate.
+
+
 ## Release validation (2026-11-17)
 
 Latest failure [43841826880](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/43841826880)

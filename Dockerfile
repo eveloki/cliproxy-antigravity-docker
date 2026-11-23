@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # Personal stable distribution. Fixed official CLI; no account is baked in.
 FROM debian:bookworm-slim AS agy-builder
-ARG AGY_VERSION=1.5.9
-ARG AGY_SHA256=8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa
+ARG AGY_VERSION=1.5.14
+ARG AGY_SHA256=d58386322d2073e96b33f7cc32b4e9ae2db6228f58440369725967b2de48c7b5
 ARG TARGETARCH
 RUN test "$TARGETARCH" = amd64 && \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
@@ -18,10 +18,10 @@ RUN curl --fail --silent --show-error --location --proto '=https' --proto-redir 
     printf 'AGY_VERSION=%s\nAGY_ARCHIVE_SHA256=%s\nAGY_SOURCE=https://github.com/google-antigravity/antigravity-cli\n' \
       "$AGY_VERSION" "$AGY_SHA256" > /out/agy/provenance.txt && rm /tmp/agy.tar.gz
 FROM golang:1.26-bookworm AS builder
-ARG CPA_COMMIT=f5c5681a8361c9da53e93c60b6507816eee7468b
-ARG PLUGIN_COMMIT=d9da324166d757fb7c908d9b6f798e9211016e38
-ARG CPA_VERSION=v8.0.80
-ARG PLUGIN_VERSION=v0.3.2
+ARG CPA_COMMIT=6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6
+ARG PLUGIN_COMMIT=9054559e99e5a6fd8f834c90480977256816ddd1
+ARG CPA_VERSION=v8.1.1
+ARG PLUGIN_VERSION=v0.4.0
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git python3 ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts/fetch-source.sh /usr/local/bin/fetch-source
@@ -33,9 +33,8 @@ RUN go mod download && go mod verify && \
     go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /out/CLIProxyAPI ./cmd/server/
 WORKDIR /src/plugin
 COPY compat/ /compat/
-RUN git apply --check /compat/plugin-distribution.patch && \
-    git apply /compat/plugin-distribution.patch && \
-    python3 /compat/stamp-version.py plugin.go "$PLUGIN_VERSION" && \
+RUN go test /compat/prepare-plugin.go /compat/prepare-plugin_test.go && \
+    go run /compat/prepare-plugin.go . "$PLUGIN_VERSION" && \
     cp /compat/distribution_*.go . && \
     gofmt -w distribution_*.go agy.go plugin.go && \
     go test ./... && \
@@ -47,7 +46,7 @@ RUN mkdir -p /out/licenses && \
     cp /src/plugin/THIRD_PARTY_NOTICES.md /out/licenses/plugin-THIRD_PARTY_NOTICES.md && \
     printf 'CPA_VERSION=%s\nCPA_COMMIT=%s\nPLUGIN_VERSION=%s\nPLUGIN_COMMIT=%s\n' "$CPA_VERSION" "$CPA_COMMIT" "$PLUGIN_VERSION" "$PLUGIN_COMMIT" > /out/upstream-versions.txt
 RUN printf 'PLUGIN_COMPAT=dist1\n' >> /out/upstream-versions.txt && \
-    cd /compat && sha256sum plugin-distribution.patch stamp-version.py distribution_*.go >> /out/upstream-versions.txt
+    cd /compat && sha256sum prepare-plugin*.go distribution_*.go >> /out/upstream-versions.txt
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \

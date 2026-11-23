@@ -55,3 +55,17 @@ UID/GID/权限及其他文件的原始字节，仅允许该 Codex JSON 的空白
   adds the explicit termination guard described in `compat/README.md`.
 - Fixed tags, latest/stable promotion checks, historical rc images and Compose volume layout
   remain unchanged. CLI remains manually pinned rather than following unattended updates.
+
+## Candidate refresh (2026-11-23; not published)
+
+- CPA v8.1.1: `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
+- Plugin [v0.4.0](https://github.com/adeebahmad01/cliproxy-antigravity/releases/tag/v0.4.0):
+  `9054559e99e5a6fd8f834c90480977256816ddd1`.
+- Official CLI [1.5.14](https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.14),
+  Linux x64 asset SHA256 `d58386322d2073e96b33f7cc32b4e9ae2db6228f58440369725967b2de48c7b5`.
+  Downloaded bytes match that official digest; local version/help checks passed.
+- Replace the source-context unified patch with syntax-based, fail-closed preparation.
+  Namespace isolation, early-termination rejection, source version checking and provenance remain.
+- v0.4.0 changes managed-account conversation IDs; see both READMEs before resuming old sessions.
+- CLI stays manually pinned. Fixed tags remain immutable; latest/stable only advance after testing.
+  Historical rc images, Compose paths and volume/seeding behavior are unchanged by this candidate.
