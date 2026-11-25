@@ -6,11 +6,15 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORIES = {'cpa': 'router-for-me/CLIProxyAPI', 'plugin': 'adeebahmad01/cliproxy-antigravity'}
+# v0.6 replaces the self router with model registration per enabled agy auth.
+# Lift this boundary only after the distribution supports that account model.
+PLUGIN_AUTH_ROUTING_START = (0, 6, 0)
 
 
 def version_tuple(value):
@@ -43,6 +47,27 @@ def release_commit(repository, tag, get=api):
     raise ValueError('Excessive annotated tag nesting')
 
 
+def compatible_plugin_tag(repository, pinned, get):
+    best = pinned
+    best_version = version_tuple(best)
+    if best_version >= PLUGIN_AUTH_ROUTING_START:
+        raise ValueError('Pinned plugin requires unsupported per-account model registration')
+    page = 1
+    while True:
+        releases = get(f'repos/{repository}/releases?per_page=100&page={page}')
+        for release in releases:
+            if release.get('draft') or release.get('prerelease'):
+                continue
+            tag = release['tag_name']
+            version = version_tuple(tag)
+            if best_version < version < PLUGIN_AUTH_ROUTING_START:
+                best = tag
+                best_version = version
+        if len(releases) < 100:
+            return best
+        page += 1
+
+
 def next_lock(current, get=api):
     proposed = copy.deepcopy(current)
     for key, repository in REPOSITORIES.items():
@@ -53,6 +78,10 @@ def next_lock(current, get=api):
         if release.get('draft') or release.get('prerelease'):
             raise ValueError('Refusing draft or prerelease')
         version = release['tag_name']
+        if key == 'plugin' and version_tuple(version) >= PLUGIN_AUTH_ROUTING_START:
+            compatible = compatible_plugin_tag(repository, old['version'], get)
+            print(f'Plugin {version} requires per-account model registration; selecting compatible {compatible}.', file=sys.stderr)
+            version = compatible
         old_version, new_version = version_tuple(old['version']), version_tuple(version)
         if new_version < old_version:
             raise ValueError(f'Refusing downgrade: {old["version"]} -> {version}')

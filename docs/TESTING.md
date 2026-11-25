@@ -1,6 +1,20 @@
 # 测试状态：正式版 / Stable
 
-## Candidate validation (2026-11-23; not published)
+## Plugin routing and CLI update (2026-11-25)
+
+The scheduled [build failure](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/45595460686)
+used the distribution plugin with an upstream v0.5.0 ABI smoke that expects bare
+`gemini-3.8-flash:max` to self route. We now verify that expectation on the stock binary and check
+the distribution dispatcher separately: `agy/…:max` and `agy/…(xhigh)` self route, while bare
+and `antigravity/` requests are declined. The container tests still load the shipped plugin.
+
+Local checks passed: 36 Python tests; upstream ABI smoke and distribution Go tests;
+CLI 1.5.17 archive digest, version and help; native CPA v8.1.4 with the shipped plugin code
+for mock JSON/SSE, client auth, namespace isolation and early-finish error propagation.
+Docker startup, five-mount compatibility and RC volume rollback remain CI gates.
+Neither the local checks nor CI use Google credentials for an inference request.
+
+## Release validation (2026-11-23)
 
 Latest failure [45071142236](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/45071142236)
 reached CPA v8.1.1/plugin v0.4.0, but the source-context patch could not apply to
@@ -16,8 +30,8 @@ The upgrade test permits only that valid UUID addition and YAML serialization ch
 compares every original setting/comment and file permission/owner, then pins the exact
 post-upgrade bytes/metadata for both recreation and rollback. Other changes still fail.
 Full Docker, five-bind and RC-volume upgrade/recreate/rollback checks remain CI release gates.
-No live Google inference or private credentials are used. GitHub submission/publication is
-pending the user's approval for this candidate.
+No live Google inference or private credentials were used. See the
+[successful release workflow](https://github.com/eveloki/cliproxy-antigravity-docker/actions/runs/45105072183).
 
 
 ## Release validation (2026-11-17)

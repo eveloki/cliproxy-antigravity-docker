@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # Personal stable distribution. Fixed official CLI; no account is baked in.
 FROM debian:bookworm-slim AS agy-builder
-ARG AGY_VERSION=1.5.14
-ARG AGY_SHA256=d58386322d2073e96b33f7cc32b4e9ae2db6228f58440369725967b2de48c7b5
+ARG AGY_VERSION=1.5.17
+ARG AGY_SHA256=6304b4f592ae97e59231cfb1b365ee29c155750c9a881f0cc8efe5f5281077cf
 ARG TARGETARCH
 RUN test "$TARGETARCH" = amd64 && \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
@@ -18,10 +18,10 @@ RUN curl --fail --silent --show-error --location --proto '=https' --proto-redir 
     printf 'AGY_VERSION=%s\nAGY_ARCHIVE_SHA256=%s\nAGY_SOURCE=https://github.com/google-antigravity/antigravity-cli\n' \
       "$AGY_VERSION" "$AGY_SHA256" > /out/agy/provenance.txt && rm /tmp/agy.tar.gz
 FROM golang:1.26-bookworm AS builder
-ARG CPA_COMMIT=85225381d89915595598ed13766cd79890c03a84
-ARG PLUGIN_COMMIT=9054559e99e5a6fd8f834c90480977256816ddd1
-ARG CPA_VERSION=v8.1.2
-ARG PLUGIN_VERSION=v0.4.0
+ARG CPA_COMMIT=38fe929502f19f7cce03c69c19aacddf30f1ef5e
+ARG PLUGIN_COMMIT=ef1257ffeae80508a6001c50878388cba4db6f08
+ARG CPA_VERSION=v8.1.4
+ARG PLUGIN_VERSION=v0.5.0
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git python3 ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts/fetch-source.sh /usr/local/bin/fetch-source
@@ -32,14 +32,17 @@ WORKDIR /src/cpa
 RUN go mod download && go mod verify && \
     go build -trimpath -buildvcs=false -ldflags="-s -w -X main.Version=${CPA_VERSION} -X main.Commit=${CPA_COMMIT} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /out/CLIProxyAPI ./cmd/server/
 WORKDIR /src/plugin
+# The upstream ABI smoke checks upstream routing, including bare model names.
+RUN tmp=$(mktemp -d) && \
+    go build -trimpath -buildvcs=false -buildmode=c-shared -o "$tmp/upstream.so" . && \
+    python3 scripts/abi_smoke.py "$tmp/upstream.so" && rm -rf "$tmp"
 COPY compat/ /compat/
 RUN go test /compat/prepare-plugin.go /compat/prepare-plugin_test.go && \
     go run /compat/prepare-plugin.go . "$PLUGIN_VERSION" && \
     cp /compat/distribution_*.go . && \
     gofmt -w distribution_*.go agy.go plugin.go && \
     go test ./... && \
-    go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="-s -w" -o /out/cliproxy-antigravity.so . && \
-    python3 scripts/abi_smoke.py /out/cliproxy-antigravity.so
+    go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="-s -w" -o /out/cliproxy-antigravity.so .
 RUN mkdir -p /out/licenses && \
     cp /src/cpa/LICENSE /out/licenses/CLIProxyAPI.LICENSE && \
     cp /src/plugin/LICENSE /out/licenses/cliproxy-antigravity.LICENSE && \

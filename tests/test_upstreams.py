@@ -73,6 +73,26 @@ class UpstreamTests(unittest.TestCase):
         self.assertEqual(result['cpa']['version'], tag)
         self.assertEqual(result['agy'], self.lock['agy'])
 
+    def test_plugin_auth_routing_release_does_not_block_compatible_patches(self):
+        plugin, cpa = self.lock['plugin'], self.lock['cpa']
+        plugin_repo, cpa_repo = plugin['repository'], cpa['repository']
+        plugin.update(version='v0.5.0', commit='a' * 40)
+        latest = f'repos/{plugin_repo}/releases/latest'
+        self.replies[latest]['tag_name'] = 'v0.6.0'
+        releases = f'repos/{plugin_repo}/releases?per_page=100&page=1'
+        self.replies[releases] = [self.replies[latest],
+                                  {'tag_name': 'v0.5.2', 'prerelease': True},
+                                  {'tag_name': 'v0.5.0'}, {'tag_name': 'v0.5.1'}]
+        self.replies[f'repos/{plugin_repo}/git/ref/tags/v0.5.0'] = {'object': {'type': 'commit', 'sha': 'a' * 40}}
+        self.replies[f'repos/{plugin_repo}/git/ref/tags/v0.5.1'] = {'object': {'type': 'commit', 'sha': 'b' * 40}}
+        self.replies[f'repos/{cpa_repo}/releases/latest']['tag_name'] = 'v99.0.0'
+        self.replies[f'repos/{cpa_repo}/git/ref/tags/v99.0.0'] = {'object': {'type': 'commit', 'sha': 'c' * 40}}
+        result = upstreams.next_lock(self.lock, self.get)
+        self.assertEqual(result['plugin']['version'], 'v0.5.1')
+        self.assertEqual(result['cpa']['version'], 'v99.0.0')
+        self.replies[releases].pop()
+        self.assertEqual(upstreams.next_lock(self.lock, self.get)['plugin'], plugin)
+
     def test_downgrade_is_rejected(self):
         entry = self.lock['cpa']
         self.replies[f'repos/{entry["repository"]}/releases/latest']['tag_name'] = 'v1.0.0'

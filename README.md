@@ -9,12 +9,12 @@ can keep its Compose file and replace the image name.
 > [!WARNING]
 > **Do not install, update or reinstall `cliproxy-antigravity` through the management panel's plugin store,
 > even if the panel offers an update.** This image bundles a plugin with distribution-specific
-> `agy/` namespace isolation and early-termination checks for CLI 1.5.14. A store binary can hot-replace
+> `agy/` namespace isolation and CLI early-termination checks. A store binary can hot-replace
 > that build and lose these guarantees. Update this plugin **only by upgrading this project's Docker image**.
 > The warning applies to `cliproxy-antigravity`; see the explanation and recovery steps below.
 
-- CPA and plugin follow the latest stable upstream releases through image builds, checked every 30 minutes; plugin compatibility patches and tests run before publication.
-- Official CLI is pinned to `1.5.14` with a verified SHA256.
+- CPA and compatible plugin releases are checked every 30 minutes and published after tests pass.
+- Official CLI is pinned to `1.5.17` with a verified SHA256.
 - Default test model: `gemini-3.8-flash`; plugin API model: `agy/gemini-3.8-flash`.
 - Fixed tags include CPA, plugin, CLI and packaging versions; see [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases) for published versions.
 - Published platform: `linux/amd64`. ARM64 and Docker Desktop are not separately validated.
@@ -118,8 +118,9 @@ based on upstream reports, not a guaranteed keyring contract for every environme
 
 ### Why the bundled plugin must not be updated from the store
 
-This image uses upstream plugin **v0.4.0** with the [disclosed distribution patch](compat/README.md),
-identified as **`0.4.0+dist1`**. CPA source is unchanged.
+This image uses the [disclosed distribution safeguards](compat/README.md). The bundled plugin
+reports the version in `upstream-versions.json` with a `+dist1` suffix (`0.5.0+dist1` in this release).
+CPA source is unchanged.
 
 | Behavior | Current implementation |
 | --- | --- |
@@ -150,7 +151,7 @@ If the store copy has already taken over:
    `plugins.dir` can still be scanned. Preserve unrelated plugins, config, credentials and data.
 3. Retain the bundled managed copy; if that same file was overwritten, back up and move that conflicting
    copy out too, allowing startup to seed the image's patched library. Restart the affected service.
-4. Confirm the **active** loaded version is `0.4.0+dist1` for this release, then explicitly
+4. Confirm the **active** loaded version has the expected `+dist1` suffix, then explicitly
    run an inference check. A model list containing `agy/*` alone does not prove routing works.
 
 ### Conversation IDs when upgrading to plugin v0.4.0
@@ -246,7 +247,7 @@ When Docker reuses that binary from its build cache, its original compilation ti
 are retained. Use a fixed tag or digest to control upgrades; pulling a new image does not update an
 already running container until you recreate it.
 
-Main pushes and checks at minute 17/47 resolve stable CPA/plugin releases, build and test candidates,
+Main pushes and checks at minute 17/47 resolve stable CPA and compatible plugin releases, build and test candidates,
 record exact input SHAs, then publish GHCR and a GitHub Release. The official CLI stays pinned.
 Failed builds/tests leave the previous aliases intact. Manual publication is available in Actions →
 **Stable container release**. Go/base images track version series, so builds are not promised to be byte reproducible.
@@ -263,7 +264,7 @@ This distribution packages three upstream projects:
 | Upstream | Role |
 | --- | --- |
 | [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) | API proxy server; follows stable releases. |
-| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI executor plugin; follows stable releases with disclosed namespace/CLI termination safeguards. |
+| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI executor plugin. Automatic updates stay below v0.6.0 until per-account model registration is supported. |
 | [google-antigravity/antigravity-cli](https://github.com/google-antigravity/antigravity-cli) | Official Antigravity CLI; bundled at a pinned version with SHA256 verification. |
 
 See [upstream records](docs/UPSTREAM.md), `upstream-versions.json` and
