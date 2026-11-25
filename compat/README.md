@@ -1,7 +1,7 @@
-# Distribution safeguards for upstream plugin v0.4.0
+# Distribution safeguards for the Antigravity plugin
 
-The candidate uses upstream commit `9054559e99e5a6fd8f834c90480977256816ddd1`
-and identifies the custom plugin as `0.4.0+dist1`. CPA source remains unmodified.
+The plugin commit is pinned in `upstream-versions.json`. The build identifies the custom
+plugin with a `+dist1` suffix. CPA source remains unmodified.
 
 ## Syntax-based preparation
 
@@ -17,12 +17,19 @@ in memory before any source file is written.
 Every required target must match exactly once. Missing, duplicated or already
 changed contracts fail the build for review; no unknown structure is silently
 skipped. `prepare-plugin_test.go` covers layout/session changes and failure without
-partial source writes. Go tests, upstream ABI smoke and HTTP integration tests
-remain required. Source commits and transformation/helper SHA256 values are
+partial source writes. Upstream ABI smoke runs on the upstream binary, where a bare model
+such as `gemini-3.8-flash:max` is expected to self route. The shipped binary uses the
+distribution contract: Go tests check its ABI dispatcher for both routing and rejection,
+and the container smoke exercises CPA with the shipped binary over HTTP. The publisher
+requires all these checks. Source commits and transformation/helper SHA256 values are
 recorded in `/opt/cliproxy/upstream-versions.txt`.
 
 The old v0.3.x unified patch failed on the account-aware changes in v0.4.0.
 The retired patch and Python version stamper remain available in git history.
+
+Plugin v0.6.0 turns off self routing and requires model registration per enabled `agy`
+account. The updater selects stable versions below v0.6.0 until that migration can preserve
+existing deployments. This limit does not stop CPA updates or change the CLI pin.
 
 ## Preserved safeguards
 

@@ -2,19 +2,19 @@
   "schema": 1,
   "cpa": {
     "repository": "router-for-me/CLIProxyAPI",
-    "version": "v8.1.2",
-    "commit": "85225381d89915595598ed13766cd79890c03a84"
+    "version": "v8.1.4",
+    "commit": "38fe929502f19f7cce03c69c19aacddf30f1ef5e"
   },
   "plugin": {
     "repository": "adeebahmad01/cliproxy-antigravity",
-    "version": "v0.4.0",
-    "commit": "9054559e99e5a6fd8f834c90480977256816ddd1"
+    "version": "v0.5.0",
+    "commit": "ef1257ffeae80508a6001c50878388cba4db6f08"
   },
   "agy": {
     "repository": "google-antigravity/antigravity-cli",
-    "version": "1.5.14",
+    "version": "1.5.17",
     "asset": "agy_cli_linux_x64.tar.gz",
-    "sha256": "d58386322d2073e96b33f7cc32b4e9ae2db6228f58440369725967b2de48c7b5"
+    "sha256": "6304b4f592ae97e59231cfb1b365ee29c155750c9a881f0cc8efe5f5281077cf"
   },
   "packaging_revision": 1
 }

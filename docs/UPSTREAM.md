@@ -56,7 +56,7 @@ UID/GID/权限及其他文件的原始字节，仅允许该 Codex JSON 的空白
 - Fixed tags, latest/stable promotion checks, historical rc images and Compose volume layout
   remain unchanged. CLI remains manually pinned rather than following unattended updates.
 
-## Candidate refresh (2026-11-23; not published)
+## Release refresh (2026-11-23)
 
 - CPA v8.1.1: `6eb8554f0ede597b2aa3e508ffb3f111d3c2b9e6`.
 - Plugin [v0.4.0](https://github.com/adeebahmad01/cliproxy-antigravity/releases/tag/v0.4.0):
@@ -68,4 +68,17 @@ UID/GID/权限及其他文件的原始字节，仅允许该 Codex JSON 的空白
   Namespace isolation, early-termination rejection, source version checking and provenance remain.
 - v0.4.0 changes managed-account conversation IDs; see both READMEs before resuming old sessions.
 - CLI stays manually pinned. Fixed tags remain immutable; latest/stable only advance after testing.
-  Historical rc images, Compose paths and volume/seeding behavior are unchanged by this candidate.
+  Historical rc images, Compose paths and volume/seeding behavior are unchanged.
+
+## CLI and plugin routing update (2026-11-25)
+
+- CPA [v8.1.4](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.4) and plugin
+  [v0.5.0](https://github.com/adeebahmad01/cliproxy-antigravity/releases/tag/v0.5.0): exact source
+  commits are in `upstream-versions.json`.
+- Official CLI [1.5.17](https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.17),
+  Linux x64 archive SHA256 `6304b4f592ae97e59231cfb1b365ee29c155750c9a881f0cc8efe5f5281077cf`.
+  Downloaded bytes match the published digest. CLI upgrades remain manual and pinned.
+- Plugin [v0.6.0](https://github.com/adeebahmad01/cliproxy-antigravity/releases/tag/v0.6.0)
+  replaces self routing with model registration per enabled account. Automatic publishing
+  selects stable plugin versions below v0.6.0 pending migration support and continues to
+  track CPA stable releases independently.

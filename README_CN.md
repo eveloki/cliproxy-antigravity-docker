@@ -7,12 +7,12 @@
 
 > [!WARNING]
 > **禁止在管理面板的插件商店安装、更新或重新安装 `cliproxy-antigravity`，即使面板提示有更新。**
-> 本镜像内置插件保留 `agy/` 命名空间隔离，并检查 CLI 1.5.14 的提前终止状态。商店版可能热替换
+> 本镜像内置插件保留 `agy/` 命名空间隔离，并检查 CLI 的提前终止状态。商店版可能热替换
 > 内置版本，使这些保护丢失。**此插件只能通过升级本项目 Docker 镜像更新。**
 > 此限制针对 `cliproxy-antigravity`；具体原因和误更新后的恢复方式见下文。
 
-- CPA 和插件每 30 分钟检查最新正式 Release，在镜像构建中应用插件兼容补丁并通过测试后自动发布。
-- 官方 CLI 固定为 `1.5.14`，构建时校验 SHA256。
+- 每 30 分钟检查 CPA 正式版及兼容的插件正式版，通过测试后自动发布。
+- 官方 CLI 固定为 `1.5.17`，构建时校验 SHA256。
 - 默认测试模型：`gemini-3.8-flash`；插件 API 模型：`agy/gemini-3.8-flash`。
 - 固定标签包含 CPA、插件、CLI 和打包修订版本；已发布版本见 [Releases](https://github.com/eveloki/cliproxy-antigravity-docker/releases)。
 - 发布平台为 `linux/amd64`，ARM64 和 Docker Desktop 未单独验收。
@@ -109,8 +109,8 @@ CLI 本体位于 `/opt/agy/agy`，不被凭据或插件挂载遮住，关闭自�
 
 ### 为什么不能从商店更新内置插件
 
-当前镜像使用上游插件 **v0.4.0** 和[公开的发行层补丁](compat/README.md)，
-版本标识为 **`0.4.0+dist1`**，CPA 源码保持不变。
+镜像采用[公开的发行层保护](compat/README.md)，内置插件的版本为 `upstream-versions.json` 中的
+版本加上 `+dist1` 后缀（本次发行是 `0.5.0+dist1`）。CPA 源码保持不变。
 
 | 行为 | 当前实现 |
 | --- | --- |
@@ -136,7 +136,7 @@ Google 登录仍由官方 CLI 负责。新版插件可能生成不含 Google acc
 2. 备份并移出冲突的未打补丁 `cliproxy-antigravity` 二进制，备份位置必须在**整个插件扫描目录树之外**，
    包括架构子目录；只移动到 `plugins.dir` 内的备份子目录，仍可能被扫描。保留其他插件、配置、凭据和数据。
 3. 保留受管的内置兼容副本；如果该同名文件也被覆盖，应将冲突副本备份移出，让启动脚本重新播种镜像内的补丁库，然后重启对应服务。
-4. 确认日志中**当前活动版本**为本次发行的 `0.4.0+dist1`，再显式验证一次推理。
+4. 确认日志中**当前活动版本**带有预期的 `+dist1` 后缀，再显式验证一次推理。
    仅看到模型列表含 `agy/*`，不能证明执行器路由已恢复。
 
 ### 升级 v0.4.0 的会话 ID 变化
@@ -234,7 +234,7 @@ CI 不读取 Google 凭据，也不请求真实 Google 推理。实际结果及�
 | 上游项目 | 作用 |
 | --- | --- |
 | [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) | API 代理服务，自动跟踪正式版本。 |
-| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI 执行器插件，自动跟踪正式版本并应用已公开的兼容补丁。 |
+| [adeebahmad01/cliproxy-antigravity](https://github.com/adeebahmad01/cliproxy-antigravity) | Antigravity CLI 执行器插件。按账号注册模型的兼容工作完成前，自动更新只选择低于 v0.6.0 的正式版。 |
 | [google-antigravity/antigravity-cli](https://github.com/google-antigravity/antigravity-cli) | Google 官方 Antigravity CLI，固定版本内置并校验 SHA256。 |
 
 见 [上游记录](docs/UPSTREAM.md)、`upstream-versions.json` 和 [第三方声明](THIRD_PARTY_NOTICES.md)。
